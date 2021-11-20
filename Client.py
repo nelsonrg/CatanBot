@@ -118,6 +118,9 @@ class Client:
         elif message_head == '1009':
             # player puts a piece
             self.process_piece_placement(message_body)
+        elif message_head == '1086':
+            # player elements/resources
+            self.set_player_resources(message_body)
 
     def create_board(self, message_body, game_name):
         # remove |gameName, from beginning of str
@@ -148,6 +151,9 @@ class Client:
                 location = move[3]
                 message = f'1009|{game_name},{player_number},{piece_code},{location}'
                 self.write_message(message)
+            elif move_type == '1072':
+                player_number = move[1]
+                message = f'1072|{game_name},{player_number}'
 
     def process_piece_placement(self, message_body):
         message_list = [x for x in message_body.split(',')]
@@ -158,6 +164,31 @@ class Client:
                       'piece_code': piece_code,
                       'location': location}
         self.controller.process_piece_placement(piece_dict)
+
+    def set_player_resources(self, message_body):
+        # remove game name and first empty value
+        message_list = message_body.split('|')[2:]
+        player_number = int(message_list[0])
+        action = int(message_list[1])
+        resource_list = [int(x) for x in message_list[2:]]
+        # translate resource list to human-readable format
+        resources_dict = dict()
+        for idx in range(len(resource_list)):
+            if idx % 2 == 0:
+                if resource_list[idx] == 1:
+                    resources_dict['CLAY'] = resource_list[idx+1]
+                elif resource_list[idx] == 2:
+                    resources_dict['ORE'] = resource_list[idx + 1]
+                elif resource_list[idx] == 3:
+                    resources_dict['SHEEP'] = resource_list[idx + 1]
+                elif resource_list[idx] == 4:
+                    resources_dict['WHEAT'] = resource_list[idx + 1]
+                elif resource_list[idx] == 5:
+                    resources_dict['WOOD'] = resource_list[idx + 1]
+        self.controller.set_player_resources(player_number, action, resources_dict)
+
+
+
 
 
 class DataOutputStream:

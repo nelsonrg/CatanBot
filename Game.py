@@ -5,6 +5,10 @@ class Game:
     def __init__(self):
         self.player_list = [Player(0), Player(1), Player(2), Player(3), Player(4)]
         self.board = Board()
+        self.turn_number = 0
+
+    def increment_turn(self):
+        self.turn_number += 1
 
     def create_board(self, board_layout):
         print("Creating Board")
@@ -37,6 +41,8 @@ class Game:
                     player.place_road(location, self.board.not_available_roads)
                 else:
                     player.potential_roads.discard(location)
+                if self.turn_number > 1:
+                    player.update_potential_settlements(self.board.available_settlements)
         elif piece_code == 1:
             # settlement
             # step 1
@@ -48,3 +54,21 @@ class Game:
                     player.place_settlement(location, self.board.not_available_roads)
                 else:
                     player.potential_settlements = self.board.available_settlements
+                if self.turn_number > 1:
+                    player.update_potential_settlements(self.board.available_settlements)
+
+    def set_player_resources(self, player_number, resources_dict):
+        player = self.player_list[player_number]
+        player.resources_dict = resources_dict
+
+    def gain_player_resources(self, player_number, resources_dict):
+        player = self.player_list[player_number]
+        for resource in resources_dict.keys():
+            player.resources_dict[resource] += 1
+
+    def lose_player_resources(self, player_number, resources_dict):
+        player = self.player_list[player_number]
+        for resource in resources_dict.keys():
+            player.resources_dict[resource] -= 1
+
+

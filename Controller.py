@@ -22,6 +22,7 @@ class Controller:
             else:
                 message_list = self.execute_turn()
             self.turn_number += 1
+            self.game.increment_turn()
         return message_list
 
     def make_opening_turn(self):
@@ -54,7 +55,34 @@ class Controller:
         return ['1009', self.player_number, piece_code, location]
 
     def execute_turn(self):
-        return 0
+        move_list = []
+        # prompt dice roll
+        move_list.append(['1072', self.player_number])
+        player = self.game.player_list[self.player_number]
+        # how many settlements
+        n_settlements = player.how_many_settlements_can_build()
+        n_roads = player.how_many_roads_can_build()
+        can_build = (n_roads + n_settlements) > 0
+        if can_build:
+            potential_settlements = list(self.game.player_list[self.player_number].potential_settlements)
+            potential_roads = list(self.game.player_list[self.player_number].potential_roads)
+            n_moves = n_settlements - n_roads
+            choice = random.randint(0, n_moves)
+            if choice == 0:
+                # no move
+                x = 0
+            elif 0 < choice < n_settlements:
+                # build all settlements
+                for i in n_settlements:
+                    random_location = potential_settlements[random.randint(0, len(potential_settlements)-1)]
+                    move_list.append(['1009', self.player_number, 1, random_location])
+            else:
+                # build all roads
+                for i in n_roads:
+                    random_location = potential_roads[random.randint(0, len(potential_roads)-1)]
+                    move_list.append(['1009', self.player_number, 0, random_location])
+        return move_list
+
 
     def process_piece_placement(self, piece_dict):
         player_number = piece_dict.get('player_number')
@@ -83,6 +111,17 @@ class Controller:
             potential_roads.add(create_hex(first_digit, second_digit, 0, 0))
             potential_roads.add(create_hex(first_digit, second_digit, -1, -1))
         return potential_roads - self.game.board.not_available_roads
+
+    def set_player_resources(self, player_number, action, resources_dict):
+        if action == 100:
+            # SET
+            self.game.set_player_resources(player_number, resources_dict)
+        elif action == 101:
+            # GAIN
+            self.game.gain_player_resources(player_number, resources_dict)
+        elif action == 102:
+            # LOSE
+            self.game.lose_player_resources(player_number, resources_dict)
 
 
 
