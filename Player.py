@@ -5,6 +5,7 @@ class Player:
         self.victory_points = 0
         self.roads = set()
         self.settlements = set()
+        self.cities = set()
         self.potential_settlements = set()
         self.potential_roads = set()
         self.player_number = player_number
@@ -20,12 +21,24 @@ class Player:
         self.update_potential_roads()
         self.potential_roads = self.potential_roads - not_available_roads
 
-    def place_settlement(self, location, not_available_roads):
+    def place_settlement(self, location, not_available_roads, board):
+        # assign initial resources on 2nd settlement
+        if len(self.settlements) == 1:
+            resource_list = board.get_resources_from_settlement(location)
+            for resource in resource_list:
+                self.resources_dict[resource] += 1
         self.settlements.add(location)
         self.potential_settlements.discard(location)
         self.update_potential_roads()
         self.potential_roads = self.potential_roads - not_available_roads
         self.victory_points += 1
+
+    def place_city(self, location):
+        # only do this if settlement at location already
+        if location in self.settlements:
+            self.settlements.remove(location)
+            self.cities.add(location)
+            self.victory_points += 1
 
     def update_potential_roads(self):
         for location in self.settlements:
@@ -81,3 +94,11 @@ class Player:
         return min(min(self.resources_dict['WOOD'], self.resources_dict['CLAY'],
                    self.resources_dict['SHEEP'], self.resources_dict['WHEAT']),
                    len(self.potential_settlements))
+
+    def how_many_cities_can_build(self):
+        return min(min(self.resources_dict['ORE'] // 3, self.resources_dict['WHEAT'] // 2),
+                   len(self.settlements))
+
+    def trade_resources(self, resource_give, resource_receive, ratio = 4):
+        self.resources_dict[resource_give] -= ratio
+        self.resources_dict[resource_receive] += 1

@@ -161,6 +161,7 @@ class CatanBotClient:
             # player puts a piece
             self.process_piece_put(message_body)
 
+
     def create_board(self, message_body, game_name):
         # remove |gameName, from beginning of str
         left_cut = len(game_name) + 2

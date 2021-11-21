@@ -4,6 +4,7 @@ import io
 from Controller import *
 from Game import *
 import random
+from time import sleep
 
 
 class Client:
@@ -20,6 +21,11 @@ class Client:
         self.socket.setblocking(True)
         self.socket.connect((host, port))
         self.controller = Controller()
+        self.resource_code_dict = {1: 'CLAY',
+                                   2: 'ORE',
+                                   3: 'SHEEP',
+                                   4: 'WHEAT',
+                                   5: 'WOOD'}
 
     def run(self, game_name, player_number):
         self.start_connection()
@@ -121,6 +127,9 @@ class Client:
         elif message_head == '1086':
             # player elements/resources
             self.set_player_resources(message_body)
+        elif message_head == '1092':
+            # dice result resources
+            self.dice_result_resources(message_body)
 
     def create_board(self, message_body, game_name):
         # remove |gameName, from beginning of str
@@ -151,10 +160,29 @@ class Client:
                 piece_code = move[2]
                 location = move[3]
                 message = f'1009|{game_name},{player_number},{piece_code},{location}'
+            elif move_type == '1043':
+                # build request
+                piece_code = move[1]
+                message = f'1043|{game_name},{piece_code}'
+            elif move_type == '1040':
+                # player trade
+                resource_give = move[1]
+                resource_receive = move[2]
+                give_amount = move[3]
+                player_number = move[4]
+                give_dict = {resource: 0 for resource in self.resource_code_dict.values()}
+                receive_dict = {resource: 0 for resource in self.resource_code_dict.values()}
+                give_dict[resource_give] = give_amount
+                # always receive one
+                receive_dict[resource_receive] = 1
+                message = f'1040|{game_name},{give_dict["CLAY"]},{give_dict["ORE"]},{give_dict["SHEEP"]},' \
+                          f'{give_dict["WHEAT"]},{give_dict["WOOD"]},' \
+                          f'{receive_dict["CLAY"]},{receive_dict["ORE"]},{receive_dict["SHEEP"]},' \
+                          f'{receive_dict["WHEAT"]},{receive_dict["WOOD"]},{player_number}'
             else:
                 message = f'{move_type}|{game_name}'
             self.write_message(message)
-
+            # sleep(1)
 
     def process_piece_placement(self, message_body):
         message_list = [x for x in message_body.split(',')]
@@ -177,7 +205,7 @@ class Client:
         for idx in range(len(resource_list)):
             if idx % 2 == 0:
                 if resource_list[idx] == 1:
-                    resources_dict['CLAY'] = resource_list[idx+1]
+                    resources_dict['CLAY'] = resource_list[idx + 1]
                 elif resource_list[idx] == 2:
                     resources_dict['ORE'] = resource_list[idx + 1]
                 elif resource_list[idx] == 3:
@@ -188,8 +216,25 @@ class Client:
                     resources_dict['WOOD'] = resource_list[idx + 1]
         self.controller.set_player_resources(player_number, action, resources_dict)
 
-
-
+    def dice_result_resources(self, message_body):
+        # remove game name
+        param_list = [int(x) for x in message_body.split('|')[2:]]
+        num_players = param_list.pop(0)
+        for player in range(num_players):
+            resource_dict = dict()
+            player_number = param_list.pop(0)
+            total_player_resources = param_list.pop(0)
+            while True:
+                try:
+                    x = param_list.pop(0)
+                except:
+                    x = 0
+                if x == 0:
+                    break
+                resource_amount = x
+                resource_code = param_list.pop(0)
+                resource_dict[self.resource_code_dict[resource_code]] = resource_amount
+            self.controller.set_player_resources(player_number, 101, resource_dict)
 
 
 class DataOutputStream:

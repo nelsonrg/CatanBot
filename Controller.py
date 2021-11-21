@@ -5,7 +5,13 @@ class Controller:
     def __init__(self):
         self.turn_number = 0
         self.player_number = 0
+        self.turn_counter = 0
         self.game = Game()
+        self.resource_code_dict = {1: 'CLAY',
+                                   2: 'ORE',
+                                   3: 'SHEEP',
+                                   4: 'WHEAT',
+                                   5: 'WOOD'}
 
     def create_board(self, board_layout):
         self.game.create_board(board_layout)
@@ -14,11 +20,21 @@ class Controller:
         self.game.update_potential_settlements(player_number, settlements)
 
     def turn(self, player_number):
+        self.turn_counter += 1
         message_list = []
         if player_number == self.player_number:
             print("CatanBot's Turn")
             if self.turn_number < 2:
-                message_list = self.make_opening_turn()
+                if self.turn_counter == 4:
+                    # make two moves
+                    message_list = self.make_opening_turn() + self.make_opening_turn()
+                    self.turn_number += 1
+                elif self.turn_counter == 8:
+                    # make one move
+                    message_list = self.make_opening_turn() + self.execute_turn()
+                    self.turn_number += 1
+                else:
+                    message_list = self.make_opening_turn()
             else:
                 message_list = self.execute_turn()
             self.turn_number += 1
@@ -61,6 +77,12 @@ class Controller:
         move_list = []
         # prompt dice roll
         move_list.append(['1031'])
+        # build cities first if you can
+        n_cities = player.how_many_cities_can_build()
+        for i in range(n_cities):
+            random_city_location = random.sample(player.settlements, 1)[0]
+            move_list.append(['1043', 2])
+            move_list.append(self.put_piece(random_city_location, 'CITY'))
         # how many settlements
         n_settlements = player.how_many_settlements_can_build()
         n_roads = player.how_many_roads_can_build()
@@ -68,7 +90,7 @@ class Controller:
         if can_build:
             potential_settlements = list(self.game.player_list[self.player_number].potential_settlements)
             potential_roads = list(self.game.player_list[self.player_number].potential_roads)
-            n_moves = n_settlements - n_roads
+            n_moves = n_roads + n_settlements  # todo make better logic later
             try:
                 choice = random.randint(0, n_moves)
             except:
@@ -77,19 +99,35 @@ class Controller:
             if choice == 0:
                 # no move
                 x = 0
-            elif 0 < choice < n_settlements:
+            elif n_settlements != 0:
                 # build all settlements
-                for i in n_settlements:
+                num_settlements_to_build = random.randint(1, n_settlements)
+                for i in range(num_settlements_to_build):
                     random_location = potential_settlements[random.randint(0, len(potential_settlements)-1)]
-                    move_list.append(['1009', self.player_number, 1, random_location])
+                    move_list.append(['1043', 1])
+                    move_list.append(self.put_piece(random_location, 'SETTLEMENT'))
             else:
                 # build all roads
-                for i in n_roads:
+                num_roads_to_build = random.randint(1, n_roads)
+                for i in range(num_roads_to_build):
                     random_location = potential_roads[random.randint(0, len(potential_roads)-1)]
-                    move_list.append(['1009', self.player_number, 0, random_location])
+                    move_list.append(['1043', 0])
+                    move_list.append(self.put_piece(random_location, 'ROAD'))
+        # randomly trade if have more than 5 of one resource
+        min_trade_amount = 5
+        can_trade = max(player.resources_dict.values()) > min_trade_amount
+        if can_trade:
+            resources_can_trade = [resource for resource, amount in player.resources_dict.items()
+                                   if amount > min_trade_amount]
+            for resource in resources_can_trade:
+                do_trade = random.randint(0, 1)
+                resource_receive = self.resource_code_dict[random.randint(1, 5)]
+                if do_trade:
+                    player.trade_resources(resource, resource_receive)
+                    move_list.append(['1040', resource, resource_receive, 4, self.player_number])
+        # end turn
         move_list.append(['1032'])
         return move_list
-
 
     def process_piece_placement(self, piece_dict):
         player_number = piece_dict.get('player_number')
@@ -102,6 +140,9 @@ class Controller:
         elif piece_code == 1:
             # settlement
             piece_name = 'SETTLEMENT'
+        elif piece_code == 2:
+            # city
+            piece_name = 'CITY'
         self.game.process_piece_placement(piece_dict)
         print(f'Placing Player Number {player_number} {piece_name} at {location}')
 

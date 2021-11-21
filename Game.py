@@ -3,7 +3,7 @@ from Board import *
 
 class Game:
     def __init__(self):
-        self.player_list = [Player(0), Player(1), Player(2), Player(3), Player(4)]
+        self.player_list = [Player(0), Player(1), Player(2), Player(3)]
         self.board = Board()
         self.turn_number = 0
 
@@ -51,16 +51,23 @@ class Game:
             # step 2 and 3
             for idx, player in enumerate(self.player_list):
                 if idx == player_number:
-                    player.place_settlement(location, self.board.not_available_roads)
+                    player.place_settlement(location, self.board.not_available_roads, self.board)
                 else:
                     player.potential_settlements = self.board.available_settlements
                 if self.turn_number > 1:
                     player.update_potential_settlements(self.board.available_settlements)
+        elif piece_code == 2:
+            # city
+            # step 1 - don't need to do that here
+            # step 2
+            player = self.player_list[player_number]
+            player.place_city(location)
+            # step 3 - don't need to do this
 
     def set_player_resources(self, player_number, resources_dict):
         player = self.player_list[player_number]
         for resource in resources_dict.keys():
-            player.resources_dict[resource] += resources_dict[resource]
+            player.resources_dict[resource] = resources_dict[resource]
 
     def gain_player_resources(self, player_number, resources_dict):
         player = self.player_list[player_number]
@@ -71,5 +78,8 @@ class Game:
         player = self.player_list[player_number]
         for resource in resources_dict.keys():
             player.resources_dict[resource] -= 1
+
+    def player_trade(self, player_number, resource_give, resource_receive, ratio = 4):
+        self.player_list[player_number].trade_resources(resource_give, resource_receive, ratio)
 
 

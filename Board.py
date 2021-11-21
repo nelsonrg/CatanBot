@@ -1,14 +1,20 @@
 from utils import *
 
+
 class Board:
     def __init__(self):
-        self.hex_list = ['17', '39', '5b', '7d',
-                         '15', '37', '59', '7b', '9d',
-                         '13', '35', '57', '79', '9b', 'bd',
-                         '11', '33', '55', '77', '99', 'bb', 'dd',
-                         '31', '53', '75', '97', 'b9', 'db',
-                         '51', '73', '95', 'b7', 'd9',
-                         '71', '93', 'b5', 'd7']
+        self.hex_list = ['0x17', '0x39', '0x5b', '0x7d',
+                         '0x15', '0x37', '0x59', '0x7b', '0x9d',
+                         '0x13', '0x35', '0x57', '0x79', '0x9b', '0xbd',
+                         '0x11', '0x33', '0x55', '0x77', '0x99', '0xbb', '0xdd',
+                         '0x31', '0x53', '0x75', '0x97', '0xb9', '0xdb',
+                         '0x51', '0x73', '0x95', '0xb7', '0xd9',
+                         '0x71', '0x93', '0xb5', '0xd7']
+        self.land_hex_list = ['0x37', '0x59', '0x7b',
+                              '0x35', '0x57', '0x79', '0x9b',
+                              '0x33', '0x55', '0x77', '0x99', '0xbb',
+                              '0x53', '0x75', '0x97', '0xb9',
+                              '0x73', '0x95', '0xb7']
         self.board_layout = None
         self.resource_dict = None
         self.num_dict = None
@@ -24,7 +30,7 @@ class Board:
 
     def parse_resources(self):
         # first 37 elements are resource and port info
-        resources = [x for x in self.board_layout[:37]]
+        resources = [int(x) for x in self.board_layout[:37]]
         # should convert to hex for ports at some point
         resource_dict = {}
         for idx, tile in enumerate(resources):
@@ -72,3 +78,23 @@ class Board:
             self.remove_settlement(create_hex(first_digit, second_digit, -1, 1))
             self.remove_settlement(create_hex(first_digit, second_digit, 1, 1))
             self.remove_settlement(create_hex(first_digit, second_digit, -1, -1))
+
+    def get_tile_from_node(self, location):
+        # reference page 186 of original PhD thesis
+        first_digit = location[2]
+        second_digit = location[3]
+        tile_set = set()
+        if is_even(first_digit) and is_odd(second_digit):
+            tile_set.add(create_hex(first_digit, second_digit, -1, 0))
+            tile_set.add(create_hex(first_digit, second_digit, -1, -1))
+            tile_set.add(create_hex(first_digit, second_digit, 1, 0))
+        elif is_odd(first_digit) and is_even(second_digit):
+            tile_set.add(create_hex(first_digit, second_digit, -2, -1))
+            tile_set.add(create_hex(first_digit, second_digit, 0, -1))
+            tile_set.add(create_hex(first_digit, second_digit, 0, 1))
+        return tile_set
+
+    def get_resources_from_settlement(self, location):
+        tile_set = self.get_tile_from_node(location)
+        return [self.resource_dict[tile] for tile in tile_set if tile in self.land_hex_list
+                and self.resource_dict[tile] != 'DESERT']
