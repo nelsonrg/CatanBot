@@ -146,14 +146,15 @@ class Client:
         for move in turn_list:
             move_type = move[0]
             if move_type == '1009':
+                # place piece
                 player_number = move[1]
                 piece_code = move[2]
                 location = move[3]
                 message = f'1009|{game_name},{player_number},{piece_code},{location}'
-                self.write_message(message)
-            elif move_type == '1072':
-                player_number = move[1]
-                message = f'1072|{game_name},{player_number}'
+            else:
+                message = f'{move_type}|{game_name}'
+            self.write_message(message)
+
 
     def process_piece_placement(self, message_body):
         message_list = [x for x in message_body.split(',')]

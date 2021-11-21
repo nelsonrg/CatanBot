@@ -55,10 +55,12 @@ class Controller:
         return ['1009', self.player_number, piece_code, location]
 
     def execute_turn(self):
+        player = self.game.player_list[self.player_number]
+        print('Potential Settlements:', player.potential_settlements)
+        print('Potential Roads:', player.potential_roads)
         move_list = []
         # prompt dice roll
-        move_list.append(['1072', self.player_number])
-        player = self.game.player_list[self.player_number]
+        move_list.append(['1031'])
         # how many settlements
         n_settlements = player.how_many_settlements_can_build()
         n_roads = player.how_many_roads_can_build()
@@ -67,7 +69,11 @@ class Controller:
             potential_settlements = list(self.game.player_list[self.player_number].potential_settlements)
             potential_roads = list(self.game.player_list[self.player_number].potential_roads)
             n_moves = n_settlements - n_roads
-            choice = random.randint(0, n_moves)
+            try:
+                choice = random.randint(0, n_moves)
+            except:
+                choice = 0
+            print('Random Choice', choice)
             if choice == 0:
                 # no move
                 x = 0
@@ -81,6 +87,7 @@ class Controller:
                 for i in n_roads:
                     random_location = potential_roads[random.randint(0, len(potential_roads)-1)]
                     move_list.append(['1009', self.player_number, 0, random_location])
+        move_list.append(['1032'])
         return move_list
 
 

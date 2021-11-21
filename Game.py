@@ -59,7 +59,8 @@ class Game:
 
     def set_player_resources(self, player_number, resources_dict):
         player = self.player_list[player_number]
-        player.resources_dict = resources_dict
+        for resource in resources_dict.keys():
+            player.resources_dict[resource] += resources_dict[resource]
 
     def gain_player_resources(self, player_number, resources_dict):
         player = self.player_list[player_number]
