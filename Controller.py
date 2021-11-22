@@ -102,17 +102,17 @@ class Controller:
             elif n_settlements != 0:
                 # build all settlements
                 num_settlements_to_build = random.randint(1, n_settlements)
-                for i in range(num_settlements_to_build):
-                    random_location = potential_settlements[random.randint(0, len(potential_settlements)-1)]
+                random_location_list = random.sample(player.potential_settlements, num_settlements_to_build)
+                for location in random_location_list:
                     move_list.append(['1043', 1])
-                    move_list.append(self.put_piece(random_location, 'SETTLEMENT'))
+                    move_list.append(self.put_piece(location, 'SETTLEMENT'))
             else:
                 # build all roads
                 num_roads_to_build = random.randint(1, n_roads)
-                for i in range(num_roads_to_build):
-                    random_location = potential_roads[random.randint(0, len(potential_roads)-1)]
+                random_location_list = random.sample(player.potential_roads, num_roads_to_build)
+                for location in random_location_list:
                     move_list.append(['1043', 0])
-                    move_list.append(self.put_piece(random_location, 'ROAD'))
+                    move_list.append(self.put_piece(location, 'ROAD'))
         # randomly trade if have more than 5 of one resource
         min_trade_amount = 5
         can_trade = max(player.resources_dict.values()) > min_trade_amount
