@@ -6,6 +6,7 @@ class Game:
         self.player_list = [Player(0), Player(1), Player(2), Player(3)]
         self.board = Board()
         self.turn_number = 0
+        self.is_opening = True
 
     def increment_turn(self):
         self.turn_number += 1
@@ -63,6 +64,13 @@ class Game:
             player = self.player_list[player_number]
             player.place_city(location)
             # step 3 - don't need to do this
+        # check that the opening is over
+        if self.is_opening:
+            total_settlements = 0
+            for player in self.player_list:
+                total_settlements += len(player.settlements)
+            if total_settlements >= 8:
+                self.is_opening = False
 
     def set_player_resources(self, player_number, resources_dict):
         player = self.player_list[player_number]
@@ -79,7 +87,7 @@ class Game:
         for resource in resources_dict.keys():
             player.resources_dict[resource] -= 1
 
-    def player_trade(self, player_number, resource_give, resource_receive, ratio = 4):
+    def player_trade(self, player_number, resource_give, resource_receive, ratio=4):
         self.player_list[player_number].trade_resources(resource_give, resource_receive, ratio)
 
 

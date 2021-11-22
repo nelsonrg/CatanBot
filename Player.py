@@ -102,3 +102,18 @@ class Player:
     def trade_resources(self, resource_give, resource_receive, ratio = 4):
         self.resources_dict[resource_give] -= ratio
         self.resources_dict[resource_receive] += 1
+
+    def spend_city_resources(self):
+        self.resources_dict['WHEAT'] -= 2
+        self.resources_dict['ORE'] -= 3
+
+    def spend_settlement_resources(self):
+        self.resources_dict['WOOD'] -= 1
+        self.resources_dict['CLAY'] -= 1
+        self.resources_dict['SHEEP'] -= 1
+        self.resources_dict['WHEAT'] -= 1
+
+    def spend_road_resources(self):
+        self.resources_dict['CLAY'] -= 1
+        self.resources_dict['WOOD'] -= 1
+

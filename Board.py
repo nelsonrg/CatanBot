@@ -98,3 +98,17 @@ class Board:
         tile_set = self.get_tile_from_node(location)
         return [self.resource_dict[tile] for tile in tile_set if tile in self.land_hex_list
                 and self.resource_dict[tile] != 'DESERT']
+
+    def get_potential_roads_from_location(self, location):
+        potential_roads = set()
+        first_digit = location[2]
+        second_digit = location[3]
+        if is_even(first_digit) and is_odd(second_digit):
+            potential_roads.add(create_hex(first_digit, second_digit, -1, -1))
+            potential_roads.add(create_hex(first_digit, second_digit, 0, 0))
+            potential_roads.add(create_hex(first_digit, second_digit, 0, -1))
+        elif is_odd(first_digit) and is_even(second_digit):
+            potential_roads.add(create_hex(first_digit, second_digit, -1, 0))
+            potential_roads.add(create_hex(first_digit, second_digit, 0, 0))
+            potential_roads.add(create_hex(first_digit, second_digit, -1, -1))
+        return potential_roads - self.not_available_roads

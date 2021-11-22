@@ -1,0 +1,302 @@
+from random import randint, sample
+from itertools import chain, combinations
+import copy
+from Game import *
+from Player import *
+import time
+import numpy as np
+
+class MCTSNode:
+    def __init__(self, player_number, game, q_value, n_value, parent, previous_action):
+        self.player_number = player_number
+        self.game = game
+        self.q_value = q_value
+        self.n_value = n_value
+        self.parent = parent
+        self.children = []
+        self.previous_action = previous_action
+        # is this the root node?
+        if self.parent is None:
+            self.is_root = True
+        else:
+            self.is_root = False
+        # generate possible actions
+        self.untried_actions = self.get_legal_moves()
+        self.is_terminal = self.is_terminal()
+
+    # update Q-value for the node from simulation results
+    # todo fix this
+    def update_q(self):
+        player = self.game.player_list[self.player_number]
+        self.q_value += player.victory_points
+
+    # update number of times this node has been simulated
+    def update_n(self):
+        self.n_value += 1
+
+    # check if any player won the game
+    def is_terminal(self):
+        for player in self.game.player_list:
+            if player.victory_points > 9:
+                return True
+        return False
+
+    def expand(self):
+        random_idx = randint(0, len(self.untried_actions) - 1)
+        next_game, action = self.untried_actions.pop(random_idx)
+        next_player = (self.player_number + 1) % 4
+        child = MCTSNode(next_player,
+                         next_game,
+                         0,
+                         0,
+                         self,
+                         action)
+        self.children.append(child)
+
+    def rollout(self):
+        rollout_state = self.game
+        while not self.is_terminal:
+            possible_moves = self.get_legal_moves()
+            rollout_state, action = self.rollout_policy(possible_moves)
+        return rollout_state.player_list[0].victory_points
+
+    def rollout_policy(self, possible_moves):
+        random_idx = randint(0, len(possible_moves))
+        return possible_moves[random_idx]
+
+    def get_legal_moves(self):
+        if self.game.is_opening:
+            legal_moves = get_opening_actions(self.game, self.player_number)
+        else:
+            legal_moves = get_possible_actions(self.game, self.player_number)
+        return legal_moves
+
+    def backpropogate(self, result):
+        self.update_n()
+        self.q_value += result
+
+    def best_child(self, c_param=1.4):
+        choices_weights = [
+            (c.q_value / c.n_value) + c_param * np.sqrt((2 * np.log(self.n_value) / c.n_value))
+            for c in self.children
+        ]
+        return self.children[np.argmax(choices_weights)]
+
+class MCTSAgent:
+    # https://github.com/int8/monte-carlo-tree-search/blob/master/mctspy/tree/search.py
+
+    def __init__(self, node, decision_time=20):
+        self.game = node.game
+        self.decision_time = decision_time
+        self.player_number = node.player_number
+        self.root = node
+
+    def best_action(self, simulations_number=None, total_simulation_seconds=None):
+        if simulations_number is None:
+            assert (total_simulation_seconds is not None)
+            end_time = time.time() + total_simulation_seconds
+            while time.time() < end_time:
+                v = self.tree_policy()
+                reward = v.rollout()
+                v.backpropagate(reward)
+        else:
+            for _ in range(0, simulations_number):
+                v = self.tree_policy()
+                reward = v.rollout()
+                v.backpropagate(reward)
+        # to select best child go for exploitation only
+        return self.root.best_child(0)
+
+    def tree_policy(self):
+        current_node = self.root
+        while not current_node.is_terminal_node():
+            if not current_node.is_fully_expanded():
+                return current_node.expand()
+            else:
+                current_node = current_node.best_child()
+        return current_node
+
+
+# static methods
+# takes in game and player number, returns list of tuples with game, action_list pairs
+def get_opening_actions(game, player_number):
+    possible_actions = []
+    available_settlements = game.board.available_settlements
+    for settlement in available_settlements:
+        available_roads = game.board.get_potential_roads_from_location(settlement)
+        for road in available_roads:
+            dc_game: Game = copy.deepcopy(game)
+            build_settlement_dict = {'action': 'put',
+                                     'piece_code': 1,
+                                     'location': settlement,
+                                     'player_number': player_number}
+            build_road_dict = {'action': 'put',
+                               'piece_code': 0,
+                               'location': road,
+                               'player_number': player_number}
+            settlement_dict = {'player_number': player_number,
+                               'piece_code': 1,
+                               'location': settlement}
+            road_dict = {'player_number': player_number,
+                         'piece_code': 0,
+                         'location': road}
+            dc_game.process_piece_placement(settlement_dict)
+            dc_game.process_piece_placement(road_dict)
+            action_list = [build_settlement_dict, build_road_dict]
+            possible_future = (dc_game, action_list)
+            possible_actions.append(possible_future)
+    return possible_actions
+
+def get_possible_actions(game, player_number):
+    possible_actions = []
+    for game, action_list in generate_trade_actions(game, player_number, []):
+        for game2, action_list2 in generate_road_actions(game, player_number, action_list):
+            for game3, action_list3 in generate_settlement_actions(game2, player_number, action_list2):
+                for game4, action_list4 in generate_city_actions(game3, player_number, action_list3):
+                    possible_actions.append((game4, action_list4))
+    return possible_actions
+
+def generate_city_actions(game, player_number, action_list_before):
+    player = game.player_list[player_number]
+    possible_future_list = []
+    # now build cities
+    n_cities = player.how_many_cities_can_build()
+    city_combination_list = get_subsets(player.settlements, n_cities)
+    for city_build_choice in city_combination_list:
+        if not city_build_choice:
+            possible_future_list.append((game, action_list_before))
+        else:
+            # make deep copy of game state
+            dc_game: Game = copy.deepcopy(game)
+            # make move list for this future
+            action_list = copy.deepcopy(action_list_before)
+            for location in city_build_choice:
+                # reflect changes in player
+                piece_dict = {'player_number': player_number,
+                              'piece_code': 2,
+                              'location': location}
+                dc_game.process_piece_placement(piece_dict)
+                dc_game.player_list[player_number].spend_city_resources()
+                # add actions to list
+                build_city_dict = {'action': 'put',
+                                         'piece_code': 2,
+                                         'location': location,
+                                         'player_number': player_number}
+                action_list.append(build_city_dict)
+            possible_future = (dc_game, action_list)
+            possible_future_list.append(possible_future)
+    return possible_future_list
+
+def generate_settlement_actions(game, player_number, action_list_before):
+    player = game.player_list[player_number]
+    possible_future_list = []
+    # now build settlements
+    n_settlements = player.how_many_settlements_can_build()
+    settlement_combination_list = get_subsets(player.potential_settlements, n_settlements)
+    for settlement_build_choice in settlement_combination_list:
+        if not settlement_build_choice:
+            possible_future_list.append((game, action_list_before))
+        else:
+            # make deep copy of game state
+            dc_game: Game = copy.deepcopy(game)
+            # make move list for this future
+            action_list = copy.deepcopy(action_list_before)
+            for location in settlement_build_choice:
+                # reflect changes in player
+                piece_dict = {'player_number': player_number,
+                              'piece_code': 1,
+                              'location': location}
+                dc_game.process_piece_placement(piece_dict)
+                dc_game.player_list[player_number].spend_settlement_resources()
+                # add actions to list
+                build_settlement_dict = {'action': 'put',
+                                         'piece_code': 1,
+                                         'location': location,
+                                         'player_number': player_number}
+                action_list.append(build_settlement_dict)
+            possible_future = (dc_game, action_list)
+            possible_future_list.append(possible_future)
+    return possible_future_list
+
+def generate_road_actions(game, player_number, action_list_before):
+    player = game.player_list[player_number]
+    possible_future_list = []
+    # now build roads
+    n_roads = player.how_many_roads_can_build()
+    road_combination_list = get_subsets(player.potential_roads, n_roads)
+    for road_build_choice in road_combination_list:
+        if not road_build_choice:
+            possible_future_list.append((game, action_list_before))
+        else:
+            # make deep copy of game state
+            dc_game: Game = copy.deepcopy(game)
+            # make move list for this future
+            action_list = copy.deepcopy(action_list_before)
+            for location in road_build_choice:
+                # reflect changes in player
+                piece_dict = {'player_number': player_number,
+                              'piece_code': 0,
+                              'location': location}
+                dc_game.process_piece_placement(piece_dict)
+                dc_game.player_list[player_number].spend_road_resources()
+                # add actions to list
+                build_road_dict = {'action': 'put',
+                                         'piece_code': 0,
+                                         'location': location,
+                                         'player_number': player_number}
+                action_list.append(build_road_dict)
+            possible_future = (dc_game, action_list)
+            possible_future_list.append(possible_future)
+    return possible_future_list
+
+def generate_trade_actions(game, player_number, action_list_before):
+    possible_future_list = []
+    player = game.player_list[player_number]
+    min_trade_amount = 4
+    can_trade = max(player.resources_dict.values()) >= min_trade_amount
+    if can_trade:
+        resources_can_trade = [resource for resource, amount in player.resources_dict.items()
+                               if amount >= min_trade_amount]
+        # for now, only consider trading one thing in a turn
+        trade_away_combination_list = get_subsets(resources_can_trade, 1)
+        for resource_combo in trade_away_combination_list:
+            # handle doing nothing
+            if not resource_combo:
+                possible_future_list.append((game, action_list_before))
+            else:
+                for resource_away in resource_combo:
+                    other_resources = ["ORE", "WOOD", "WHEAT", "SHEEP", "CLAY"]
+                    other_resources.remove(resource_away)
+                    for resource_receive in other_resources:
+                        action_list = copy.deepcopy(action_list_before)
+                        dc_game: Game = copy.deepcopy(game)
+                        trade_dict = {'action': 'trade',
+                                      'resource_away': resource_away,
+                                      'resource_receive': resource_receive}
+                        action_list.append(trade_dict)
+                        dc_game.player_trade(player_number, resource_away, resource_receive)
+                        possible_future_list.append((dc_game, action_list))
+    return possible_future_list
+
+
+
+def roll_dice():
+    die_1 = randint(1, 6)
+    die_2 = randint(1, 6)
+    return die_1 + die_2
+
+# https://stackoverflow.com/a/1482316
+def get_subsets(iterable, max):
+    s = list(iterable)
+    output = []
+    for r in range(max + 1):
+        for combo in combinations(s, r):
+            output.append(list(combo))
+    return output
+
+
+
+
+
+
+
