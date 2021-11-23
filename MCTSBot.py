@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 class MCTSNode:
-    def __init__(self, player_number, game, q_value, n_value, parent, previous_action, depth):
+    def __init__(self, player_number, game, q_value, n_value, parent, previous_action, depth, search_depth):
         self.player_number = player_number
         self.game = game
         self.q_value = q_value
@@ -16,6 +16,7 @@ class MCTSNode:
         self.children = []
         self.previous_action = previous_action
         self.depth = depth + 1
+        self.search_depth = search_depth
         # is this the root node?
         if self.parent is None:
             self.is_root = True
@@ -23,7 +24,9 @@ class MCTSNode:
             self.is_root = False
         # generate possible actions
         self.untried_actions = self.get_legal_moves(self.game, self.player_number)
+        self.original_legal_moves = self.get_legal_moves(self.game, self.player_number)
         self.is_terminal = self.is_terminal_game(self.game)
+        self.expand_count = 0
 
     # update Q-value for the node from simulation results
     # todo fix this
@@ -39,8 +42,11 @@ class MCTSNode:
     def is_terminal_game(self, game):
         for player in game.player_list:
             if player.victory_points > 9:
+                print('Found real terminal Game!')
                 return True
-        if game.turn_number > 50:
+        #print(f'Game Number {game.turn_number}')
+        #print(f'Node Game Number {self.game.turn_number}')
+        if game.turn_number - self.game.turn_number > self.search_depth:
             return True
         return False
 
@@ -48,8 +54,11 @@ class MCTSNode:
         return len(self.untried_actions) == 0
 
     def expand(self):
+        self.expand_count += 1
         random_idx = randint(0, len(self.untried_actions) - 1)
         next_game, action = self.untried_actions.pop(random_idx)
+        #next_game.roll_dice()
+        next_game.increment_turn()
         next_player = (self.player_number + 1) % 4
         child = MCTSNode(next_player,
                          next_game,
@@ -57,21 +66,28 @@ class MCTSNode:
                          0,
                          self,
                          action,
-                         self.depth)
+                         self.depth,
+                         self.search_depth)
         self.children.append(child)
         return child
 
     def rollout(self):
         rollout_state = self.game
         current_player = self.player_number
+        # roll the dice
+        rollout_state.roll_dice()
         while not self.is_terminal_game(rollout_state):
             possible_moves = self.get_legal_moves(rollout_state, current_player)
-            if len(possible_moves) != 0:
-                rollout_state, action = self.rollout_policy(possible_moves)
+            #if len(possible_moves) > 1:
+                # rollout_state, action = self.rollout_policy(possible_moves)
+            rollout_state, action = self.rollout_policy(possible_moves)
             rollout_state.roll_dice()
             rollout_state.increment_turn()
-            current_player = (current_player + 1) % 4
-        return rollout_state.player_list[0].victory_points
+            # control if adversarial or not
+            #current_player = (current_player + 1) % 4
+            for i in range(3):
+                rollout_state.roll_dice()
+        return rollout_state.player_list[0].victory_points * 1/10
 
     def rollout_policy(self, possible_moves):
         random_idx = randint(0, len(possible_moves) - 1)
@@ -82,22 +98,32 @@ class MCTSNode:
             legal_moves = get_opening_actions(game, player_number)
         else:
             legal_moves = get_possible_actions(game, player_number)
+        if len(legal_moves) == 0:
+            legal_moves = [(copy.deepcopy(game), [])]
+
         return legal_moves
 
     def backpropagate(self, result):
         self.n_value += 1
         self.q_value += result
+        if self.parent is not None:
+            self.parent.backpropagate(result)
 
     def best_child(self, c_param=1.4):
-        choices_weights = [
+        choices_weights = np.array([
             (c.q_value / c.n_value) + c_param * np.sqrt((2 * np.log(self.n_value) / c.n_value))
             for c in self.children
-        ]
-        print('Number of Children', len(self.children))
+        ])
+        #print('Number of Children', len(self.children))
         if len(self.children) == 0:
-            return self
+            dc = copy.deepcopy(self)
+            dc.player_number = (dc.player_number + 1) % 4
+            return dc
         else:
-            return self.children[np.argmax(choices_weights)]
+            # randomly return a best choice
+            # https://stackoverflow.com/a/42071648
+            return self.children[np.random.choice(np.flatnonzero(np.isclose(choices_weights, choices_weights.max())))]
+            #return self.children[np.argmax(choices_weights)]
 
 class MCTSAgent:
     # https://github.com/int8/monte-carlo-tree-search/blob/master/mctspy/tree/search.py
@@ -110,7 +136,7 @@ class MCTSAgent:
 
     def best_action(self, simulations_number=None, total_simulation_seconds=None):
         # handle no actions available
-        if len(self.root.untried_actions) == 0:
+        if len(self.root.original_legal_moves) <= 1:
             return self.root
         if simulations_number is None:
             assert (total_simulation_seconds is not None)
@@ -120,12 +146,18 @@ class MCTSAgent:
                 reward = v.rollout()
                 v.backpropagate(reward)
         else:
-            for _ in range(0, simulations_number):
+            for idx in range(0, simulations_number):
+                if idx % (simulations_number // 10) == 0:
+                    print(f'Simulation Number: {idx}')
                 v = self.tree_policy()
                 reward = v.rollout()
                 v.backpropagate(reward)
         # to select best child go for exploitation only
-        return self.root.best_child(0)
+        best_child: MCTSNode = self.root.best_child(0)
+        print(f'Number of possible actions: {len(best_child.parent.original_legal_moves)}')
+        print(f'Possible actions were: {best_child.parent.original_legal_moves}')
+        print(f'Best Child has action {best_child.previous_action} with q={best_child.q_value} and n={best_child.n_value}')
+        return best_child
 
     def tree_policy(self):
         current_node = self.root
@@ -142,7 +174,9 @@ class MCTSAgent:
 def get_opening_actions(game, player_number):
     possible_actions = []
     available_settlements = game.board.available_settlements
-    for settlement in available_settlements:
+    # heuristic 1 - ignore perimeter nodes with 1 adjacent tile
+    good_settlements = set(available_settlements) - set(game.board.perimeter_node_list)
+    for settlement in good_settlements:
         available_roads = game.board.get_potential_roads_from_location(settlement)
         for road in available_roads:
             dc_game: Game = copy.deepcopy(game)
@@ -270,7 +304,7 @@ def generate_road_actions(game, player_number, action_list_before):
     return possible_future_list
 
 def generate_trade_actions(game, player_number, action_list_before):
-    possible_future_list = []
+    possible_future_list = [(copy.deepcopy(game), [])]
     player = game.player_list[player_number]
     min_trade_amount = 4
     can_trade = max(player.resources_dict.values()) >= min_trade_amount

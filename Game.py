@@ -98,6 +98,7 @@ class Game:
         self.update_from_dice_roll(total_roll)
 
     def update_from_dice_roll(self, dice_roll):
+        #print('Simulated Dice:', dice_roll)
         # get tiles from dice roll
         tile_set = set()
         for tile, number in self.board.num_dict.items():
@@ -111,5 +112,7 @@ class Game:
                 for settlement in player.settlements:
                     if settlement in node_set:
                         player.resources_dict[self.board.resource_dict[tile]] += 1
+                        print(f'Player number {player.player_number} received 1 {self.board.resource_dict[tile]}')
+
 
 

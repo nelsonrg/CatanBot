@@ -28,11 +28,11 @@ class MCTSController:
             if self.turn_number < 2:
                 if self.turn_counter == 4:
                     # make two moves
-                    message_list = self.make_opening_turn() + self.make_opening_turn()
+                    message_list = self.make_2_opening_turns()
                     self.turn_number += 1
                 elif self.turn_counter == 8:
                     # make one move
-                    message_list = self.make_opening_turn() + self.execute_turn()
+                    message_list = self.make_opening_turn_and_first_turn()
                     self.turn_number += 1
                 else:
                     message_list = self.make_opening_turn()
@@ -42,11 +42,57 @@ class MCTSController:
             self.game.increment_turn()
         return message_list
 
+    def make_2_opening_turns(self):
+        move_list = []
+        # calculate from opening
+        best_node, action_list = self.think(search_depth=5, n_scale=4)
+        best_node2, action_list2 = self.think(search_depth=4, n_scale=4, previous_node=best_node)
+        for action in action_list:
+            move_list.append(self.put_piece(action['location'], action['piece_code']))
+        for action in action_list2:
+            move_list.append(self.put_piece(action['location'], action['piece_code']))
+        return move_list
+
+    def make_opening_turn_and_first_turn(self):
+        player = self.game.player_list[self.player_number]
+        move_list = []
+        # calculate from opening
+        best_node, action_list = self.think(search_depth=5, n_scale=4)
+        best_node2, action_list2 = self.think(search_depth=4, n_scale=4, previous_node=best_node)
+        for action in action_list:
+            move_list.append(self.put_piece(action['location'], action['piece_code']))
+        # prompt dice roll
+        move_list.append(['1031'])
+        if action_list2 is None:
+            move_list.append(['1032'])
+            return move_list
+        for action in action_list2:
+            move_type = action['action']
+            if move_type == 'put':
+                piece_type = action['piece_code']
+                location = action['location']
+                if piece_type == 'ROAD':
+                    move_list.append(['1043', 0])
+                    move_list.append(self.put_piece(location, 'ROAD'))
+                elif piece_type == 'SETTLEMENT':
+                    move_list.append(['1043', 1])
+                    move_list.append(self.put_piece(location, 'SETTLEMENT'))
+                elif piece_type == 'CITY':
+                    move_list.append(['1043', 2])
+                    move_list.append(self.put_piece(location, 'CITY'))
+            if move_type == 'trade':
+                resource_away = action['resource_away']
+                resource_receive = action['resource_receive']
+                player.trade_resources(resource_away, resource_receive)
+                move_list.append(['1040', resource_away, resource_receive, 4, self.player_number])
+        move_list.append(['1032'])
+        return move_list
+        return move_list
+
     def make_opening_turn(self):
         move_list = []
         # calculate from opening
-        '''
-        action_list = self.think_hard()
+        best_node, action_list = self.think(search_depth=4, n_scale=4)
         for action in action_list:
             move_list.append(self.put_piece(action['location'], action['piece_code']))
         return move_list
@@ -64,6 +110,7 @@ class MCTSController:
         road_location = potential_roads[road_location_idx]
         move_list.append(self.put_piece(road_location, 'ROAD'))
         return move_list
+        '''
 
     def put_piece(self, location, piece_type):
         player = self.game.player_list[self.player_number]
@@ -80,13 +127,14 @@ class MCTSController:
 
     def execute_turn(self):
         player = self.game.player_list[self.player_number]
+        print(f'Resources: {player.resources_dict}')
         print('Potential Settlements:', player.potential_settlements)
         print('Potential Roads:', player.potential_roads)
         move_list = []
         # prompt dice roll
         move_list.append(['1031'])
         # think
-        action_list = self.think_hard()
+        best_node, action_list = self.think(search_depth=20, n_scale=100)
         if action_list is None:
             move_list.append(['1032'])
             return move_list
@@ -112,10 +160,44 @@ class MCTSController:
         move_list.append(['1032'])
         return move_list
 
-    def think_hard(self):
-        root = MCTSNode(self.player_number, self.game, 0, 0, None, None, 0)
+    def think(self, search_depth=10, n_scale=2, max_iter=1000, previous_node=None):
+        if previous_node is None:
+            game = self.game
+        else:
+            game = previous_node.game
+        root = MCTSNode(self.player_number, game, 0, 0, None, None, 0, search_depth)
+        total_moves = len(root.original_legal_moves)
+        n = min(total_moves * n_scale, max_iter)
+        print(f'Simulating {n} Games at depth {search_depth}')
         mcts_agent: MCTSAgent = MCTSAgent(root)
-        best_node: MCTSNode = mcts_agent.best_action(total_simulation_seconds=30)
+        best_node: MCTSNode = mcts_agent.best_action(simulations_number=n)
+        action_list = best_node.previous_action
+        return best_node, action_list
+
+    def think_easy(self, search_depth=10):
+        root = MCTSNode(self.player_number, self.game, 0, 0, None, None, 0, search_depth)
+        total_moves = len(root.original_legal_moves)
+        n = total_moves * 2
+        print(f'Simulating {n} Games at depth {search_depth}')
+        mcts_agent: MCTSAgent = MCTSAgent(root)
+        best_node: MCTSNode = mcts_agent.best_action(simulations_number=n)
+        action_list = best_node.previous_action
+        return action_list
+
+    def think_hard(self, search_depth=10):
+        root = MCTSNode(self.player_number, self.game, 0, 0, None, None, 0, search_depth)
+        total_moves = len(root.original_legal_moves)
+        n = total_moves * 5
+        print(f'Simulating {n} Games at depth {search_depth}')
+        mcts_agent: MCTSAgent = MCTSAgent(root)
+        best_node: MCTSNode = mcts_agent.best_action(simulations_number=n)
+        action_list = best_node.previous_action
+        return action_list
+
+    def think_really_hard(self):
+        root = MCTSNode(self.player_number, self.game, 0, 0, None, None, 0, 100)
+        mcts_agent: MCTSAgent = MCTSAgent(root)
+        best_node: MCTSNode = mcts_agent.best_action(simulations_number=10000)
         action_list = best_node.previous_action
         return action_list
 
