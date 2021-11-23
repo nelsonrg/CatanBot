@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 class MCTSNode:
-    def __init__(self, player_number, game, q_value, n_value, parent, previous_action):
+    def __init__(self, player_number, game, q_value, n_value, parent, previous_action, depth):
         self.player_number = player_number
         self.game = game
         self.q_value = q_value
@@ -15,14 +15,15 @@ class MCTSNode:
         self.parent = parent
         self.children = []
         self.previous_action = previous_action
+        self.depth = depth + 1
         # is this the root node?
         if self.parent is None:
             self.is_root = True
         else:
             self.is_root = False
         # generate possible actions
-        self.untried_actions = self.get_legal_moves()
-        self.is_terminal = self.is_terminal()
+        self.untried_actions = self.get_legal_moves(self.game, self.player_number)
+        self.is_terminal = self.is_terminal_game(self.game)
 
     # update Q-value for the node from simulation results
     # todo fix this
@@ -35,11 +36,16 @@ class MCTSNode:
         self.n_value += 1
 
     # check if any player won the game
-    def is_terminal(self):
-        for player in self.game.player_list:
+    def is_terminal_game(self, game):
+        for player in game.player_list:
             if player.victory_points > 9:
                 return True
+        if game.turn_number > 50:
+            return True
         return False
+
+    def is_fully_expanded(self):
+        return len(self.untried_actions) == 0
 
     def expand(self):
         random_idx = randint(0, len(self.untried_actions) - 1)
@@ -50,29 +56,36 @@ class MCTSNode:
                          0,
                          0,
                          self,
-                         action)
+                         action,
+                         self.depth)
         self.children.append(child)
+        return child
 
     def rollout(self):
         rollout_state = self.game
-        while not self.is_terminal:
-            possible_moves = self.get_legal_moves()
-            rollout_state, action = self.rollout_policy(possible_moves)
+        current_player = self.player_number
+        while not self.is_terminal_game(rollout_state):
+            possible_moves = self.get_legal_moves(rollout_state, current_player)
+            if len(possible_moves) != 0:
+                rollout_state, action = self.rollout_policy(possible_moves)
+            rollout_state.roll_dice()
+            rollout_state.increment_turn()
+            current_player = (current_player + 1) % 4
         return rollout_state.player_list[0].victory_points
 
     def rollout_policy(self, possible_moves):
-        random_idx = randint(0, len(possible_moves))
+        random_idx = randint(0, len(possible_moves) - 1)
         return possible_moves[random_idx]
 
-    def get_legal_moves(self):
-        if self.game.is_opening:
-            legal_moves = get_opening_actions(self.game, self.player_number)
+    def get_legal_moves(self, game, player_number):
+        if game.is_opening:
+            legal_moves = get_opening_actions(game, player_number)
         else:
-            legal_moves = get_possible_actions(self.game, self.player_number)
+            legal_moves = get_possible_actions(game, player_number)
         return legal_moves
 
-    def backpropogate(self, result):
-        self.update_n()
+    def backpropagate(self, result):
+        self.n_value += 1
         self.q_value += result
 
     def best_child(self, c_param=1.4):
@@ -80,7 +93,11 @@ class MCTSNode:
             (c.q_value / c.n_value) + c_param * np.sqrt((2 * np.log(self.n_value) / c.n_value))
             for c in self.children
         ]
-        return self.children[np.argmax(choices_weights)]
+        print('Number of Children', len(self.children))
+        if len(self.children) == 0:
+            return self
+        else:
+            return self.children[np.argmax(choices_weights)]
 
 class MCTSAgent:
     # https://github.com/int8/monte-carlo-tree-search/blob/master/mctspy/tree/search.py
@@ -92,6 +109,9 @@ class MCTSAgent:
         self.root = node
 
     def best_action(self, simulations_number=None, total_simulation_seconds=None):
+        # handle no actions available
+        if len(self.root.untried_actions) == 0:
+            return self.root
         if simulations_number is None:
             assert (total_simulation_seconds is not None)
             end_time = time.time() + total_simulation_seconds
@@ -109,7 +129,7 @@ class MCTSAgent:
 
     def tree_policy(self):
         current_node = self.root
-        while not current_node.is_terminal_node():
+        while not current_node.is_terminal:
             if not current_node.is_fully_expanded():
                 return current_node.expand()
             else:
@@ -127,11 +147,11 @@ def get_opening_actions(game, player_number):
         for road in available_roads:
             dc_game: Game = copy.deepcopy(game)
             build_settlement_dict = {'action': 'put',
-                                     'piece_code': 1,
+                                     'piece_code': 'SETTLEMENT',
                                      'location': settlement,
                                      'player_number': player_number}
             build_road_dict = {'action': 'put',
-                               'piece_code': 0,
+                               'piece_code': 'ROAD',
                                'location': road,
                                'player_number': player_number}
             settlement_dict = {'player_number': player_number,
@@ -179,7 +199,7 @@ def generate_city_actions(game, player_number, action_list_before):
                 dc_game.player_list[player_number].spend_city_resources()
                 # add actions to list
                 build_city_dict = {'action': 'put',
-                                         'piece_code': 2,
+                                         'piece_code': 'CITY',
                                          'location': location,
                                          'player_number': player_number}
                 action_list.append(build_city_dict)
@@ -210,7 +230,7 @@ def generate_settlement_actions(game, player_number, action_list_before):
                 dc_game.player_list[player_number].spend_settlement_resources()
                 # add actions to list
                 build_settlement_dict = {'action': 'put',
-                                         'piece_code': 1,
+                                         'piece_code': 'SETTLEMENT',
                                          'location': location,
                                          'player_number': player_number}
                 action_list.append(build_settlement_dict)
@@ -241,7 +261,7 @@ def generate_road_actions(game, player_number, action_list_before):
                 dc_game.player_list[player_number].spend_road_resources()
                 # add actions to list
                 build_road_dict = {'action': 'put',
-                                         'piece_code': 0,
+                                         'piece_code': 'ROAD',
                                          'location': location,
                                          'player_number': player_number}
                 action_list.append(build_road_dict)
@@ -277,13 +297,6 @@ def generate_trade_actions(game, player_number, action_list_before):
                         dc_game.player_trade(player_number, resource_away, resource_receive)
                         possible_future_list.append((dc_game, action_list))
     return possible_future_list
-
-
-
-def roll_dice():
-    die_1 = randint(1, 6)
-    die_2 = randint(1, 6)
-    return die_1 + die_2
 
 # https://stackoverflow.com/a/1482316
 def get_subsets(iterable, max):

@@ -99,6 +99,19 @@ class Board:
         return [self.resource_dict[tile] for tile in tile_set if tile in self.land_hex_list
                 and self.resource_dict[tile] != 'DESERT']
 
+    def get_node_from_tile(self, location):
+        # reference page 186 of original PhD thesis
+        first_digit = location[2]
+        second_digit = location[3]
+        node_set = set()
+        node_set.add(create_hex(first_digit, second_digit, 0, 1))
+        node_set.add(create_hex(first_digit, second_digit, 1, 2))
+        node_set.add(create_hex(first_digit, second_digit, 2, 1))
+        node_set.add(create_hex(first_digit, second_digit, 1, 0))
+        node_set.add(create_hex(first_digit, second_digit, 0, -1))
+        node_set.add(create_hex(first_digit, second_digit, -1, 0))
+        return node_set
+
     def get_potential_roads_from_location(self, location):
         potential_roads = set()
         first_digit = location[2]

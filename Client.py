@@ -1,6 +1,7 @@
 import socket
 import struct
 import io
+from MCTSController import *
 from Controller import *
 from Game import *
 import random
@@ -20,7 +21,7 @@ class Client:
         self.socket.settimeout(False)
         self.socket.setblocking(True)
         self.socket.connect((host, port))
-        self.controller = Controller()
+        self.controller = MCTSController()
         self.resource_code_dict = {1: 'CLAY',
                                    2: 'ORE',
                                    3: 'SHEEP',

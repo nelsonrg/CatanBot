@@ -25,33 +25,6 @@ class MCTSController:
         message_list = []
         if player_number == self.player_number:
             print("CatanBot's Turn")
-            root = MCTSNode(self.player_number, self.game, 0, 0, None)
-            mcts_agent: MCTSAgent = MCTSAgent(root)
-            best_node: MCTSNode = mcts_agent.best_action()
-            action_list = best_node.previous_action
-            if self.turn_number < 2:
-                if self.turn_counter == 4:
-                    # make two moves
-                    message_list = self.make_opening_turn() + self.make_opening_turn()
-                    self.turn_number += 1
-                elif self.turn_counter == 8:
-                    # make one move
-                    message_list = self.make_opening_turn() + self.execute_turn()
-                    self.turn_number += 1
-                else:
-                    message_list = self.make_opening_turn()
-            else:
-                message_list = self.execute_turn()
-            self.turn_number += 1
-            self.game.increment_turn()
-        return message_list
-
-
-    def turn_old(self, player_number):
-        self.turn_counter += 1
-        message_list = []
-        if player_number == self.player_number:
-            print("CatanBot's Turn")
             if self.turn_number < 2:
                 if self.turn_counter == 4:
                     # make two moves
@@ -71,6 +44,13 @@ class MCTSController:
 
     def make_opening_turn(self):
         move_list = []
+        # calculate from opening
+        '''
+        action_list = self.think_hard()
+        for action in action_list:
+            move_list.append(self.put_piece(action['location'], action['piece_code']))
+        return move_list
+        '''
         # generate random settlement
         potential_settlements = list(self.game.player_list[self.player_number].potential_settlements)
         print('Potential Settlements:', potential_settlements)
@@ -105,57 +85,39 @@ class MCTSController:
         move_list = []
         # prompt dice roll
         move_list.append(['1031'])
-        # build cities first if you can
-        n_cities = player.how_many_cities_can_build()
-        for i in range(n_cities):
-            random_city_location = random.sample(player.settlements, 1)[0]
-            move_list.append(['1043', 2])
-            move_list.append(self.put_piece(random_city_location, 'CITY'))
-        # how many settlements
-        n_settlements = player.how_many_settlements_can_build()
-        n_roads = player.how_many_roads_can_build()
-        can_build = (n_roads + n_settlements) > 0
-        if can_build:
-            potential_settlements = list(self.game.player_list[self.player_number].potential_settlements)
-            potential_roads = list(self.game.player_list[self.player_number].potential_roads)
-            n_moves = n_roads + n_settlements  # todo make better logic later
-            try:
-                choice = random.randint(0, n_moves)
-            except:
-                choice = 0
-            print('Random Choice', choice)
-            if choice == 0:
-                # no move
-                x = 0
-            elif n_settlements != 0:
-                # build all settlements
-                num_settlements_to_build = random.randint(1, n_settlements)
-                random_location_list = random.sample(player.potential_settlements, num_settlements_to_build)
-                for location in random_location_list:
-                    move_list.append(['1043', 1])
-                    move_list.append(self.put_piece(location, 'SETTLEMENT'))
-            else:
-                # build all roads
-                num_roads_to_build = random.randint(1, n_roads)
-                random_location_list = random.sample(player.potential_roads, num_roads_to_build)
-                for location in random_location_list:
+        # think
+        action_list = self.think_hard()
+        if action_list is None:
+            move_list.append(['1032'])
+            return move_list
+        for action in action_list:
+            move_type = action['action']
+            if move_type == 'put':
+                piece_type = action['piece_code']
+                location = action['location']
+                if piece_type == 'ROAD':
                     move_list.append(['1043', 0])
                     move_list.append(self.put_piece(location, 'ROAD'))
-        # randomly trade if have more than 5 of one resource
-        min_trade_amount = 5
-        can_trade = max(player.resources_dict.values()) > min_trade_amount
-        if can_trade:
-            resources_can_trade = [resource for resource, amount in player.resources_dict.items()
-                                   if amount > min_trade_amount]
-            for resource in resources_can_trade:
-                do_trade = random.randint(0, 1)
-                resource_receive = self.resource_code_dict[random.randint(1, 5)]
-                if do_trade:
-                    player.trade_resources(resource, resource_receive)
-                    move_list.append(['1040', resource, resource_receive, 4, self.player_number])
-        # end turn
+                elif piece_type == 'SETTLEMENT':
+                    move_list.append(['1043', 1])
+                    move_list.append(self.put_piece(location, 'SETTLEMENT'))
+                elif piece_type == 'CITY':
+                    move_list.append(['1043', 2])
+                    move_list.append(self.put_piece(location, 'CITY'))
+            if move_type == 'trade':
+                resource_away = action['resource_away']
+                resource_receive = action['resource_receive']
+                player.trade_resources(resource_away, resource_receive)
+                move_list.append(['1040', resource_away, resource_receive, 4, self.player_number])
         move_list.append(['1032'])
         return move_list
+
+    def think_hard(self):
+        root = MCTSNode(self.player_number, self.game, 0, 0, None, None, 0)
+        mcts_agent: MCTSAgent = MCTSAgent(root)
+        best_node: MCTSNode = mcts_agent.best_action(total_simulation_seconds=30)
+        action_list = best_node.previous_action
+        return action_list
 
     def process_piece_placement(self, piece_dict):
         player_number = piece_dict.get('player_number')

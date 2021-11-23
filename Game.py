@@ -1,5 +1,6 @@
 from Player import *
 from Board import *
+from random import randint
 
 class Game:
     def __init__(self):
@@ -89,5 +90,26 @@ class Game:
 
     def player_trade(self, player_number, resource_give, resource_receive, ratio=4):
         self.player_list[player_number].trade_resources(resource_give, resource_receive, ratio)
+
+    def roll_dice(self):
+        die_1 = randint(1, 6)
+        die_2 = randint(1, 6)
+        total_roll = die_1 + die_2
+        self.update_from_dice_roll(total_roll)
+
+    def update_from_dice_roll(self, dice_roll):
+        # get tiles from dice roll
+        tile_set = set()
+        for tile, number in self.board.num_dict.items():
+            if number == dice_roll:
+                tile_set.add(tile)
+        # get nodes from tiles
+        for tile in tile_set:
+            node_set = self.board.get_node_from_tile(tile)
+            # give resources from tiles
+            for player in self.player_list:
+                for settlement in player.settlements:
+                    if settlement in node_set:
+                        player.resources_dict[self.board.resource_dict[tile]] += 1
 
 
