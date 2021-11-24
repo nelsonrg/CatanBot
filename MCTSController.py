@@ -13,6 +13,7 @@ class MCTSController:
                                    3: 'SHEEP',
                                    4: 'WHEAT',
                                    5: 'WOOD'}
+        self.current_best_node = None
 
     def create_board(self, board_layout):
         self.game.create_board(board_layout)
@@ -45,8 +46,8 @@ class MCTSController:
     def make_2_opening_turns(self):
         move_list = []
         # calculate from opening
-        best_node, action_list = self.think(search_depth=5, n_scale=4)
-        best_node2, action_list2 = self.think(search_depth=4, n_scale=4, previous_node=best_node)
+        best_node, action_list = self.think(search_depth=20, n_scale=1000)
+        best_node2, action_list2 = self.think(search_depth=20, n_scale=1000, previous_node=best_node)
         for action in action_list:
             move_list.append(self.put_piece(action['location'], action['piece_code']))
         for action in action_list2:
@@ -57,8 +58,8 @@ class MCTSController:
         player = self.game.player_list[self.player_number]
         move_list = []
         # calculate from opening
-        best_node, action_list = self.think(search_depth=5, n_scale=4)
-        best_node2, action_list2 = self.think(search_depth=4, n_scale=4, previous_node=best_node)
+        best_node, action_list = self.think(search_depth=20, n_scale=1000)
+        best_node2, action_list2 = self.think(search_depth=20, n_scale=1000, previous_node=best_node)
         for action in action_list:
             move_list.append(self.put_piece(action['location'], action['piece_code']))
         # prompt dice roll
@@ -92,7 +93,7 @@ class MCTSController:
     def make_opening_turn(self):
         move_list = []
         # calculate from opening
-        best_node, action_list = self.think(search_depth=4, n_scale=4)
+        best_node, action_list = self.think(search_depth=20, n_scale=1000)
         for action in action_list:
             move_list.append(self.put_piece(action['location'], action['piece_code']))
         return move_list
@@ -134,7 +135,7 @@ class MCTSController:
         # prompt dice roll
         move_list.append(['1031'])
         # think
-        best_node, action_list = self.think(search_depth=20, n_scale=100)
+        best_node, action_list = self.think(search_depth=20, n_scale=1000)
         if action_list is None:
             move_list.append(['1032'])
             return move_list
@@ -160,7 +161,7 @@ class MCTSController:
         move_list.append(['1032'])
         return move_list
 
-    def think(self, search_depth=10, n_scale=2, max_iter=1000, previous_node=None):
+    def think(self, search_depth=10, n_scale=2, max_iter=2000, previous_node=None):
         if previous_node is None:
             game = self.game
         else:

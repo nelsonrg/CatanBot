@@ -113,6 +113,7 @@ class Game:
                     if settlement in node_set:
                         player.resources_dict[self.board.resource_dict[tile]] += 1
                         print(f'Player number {player.player_number} received 1 {self.board.resource_dict[tile]}')
-
-
-
+                for city in player.cities:
+                    if city in node_set:
+                        player.resources_dict[self.board.resource_dict[tile]] += 2
+                        print(f'Player number {player.player_number} received 1 {self.board.resource_dict[tile]}')

@@ -5,6 +5,8 @@ from Game import *
 from Player import *
 import time
 import numpy as np
+import pickle
+
 
 class MCTSNode:
     def __init__(self, player_number, game, q_value, n_value, parent, previous_action, depth, search_depth):
@@ -44,8 +46,8 @@ class MCTSNode:
             if player.victory_points > 9:
                 print('Found real terminal Game!')
                 return True
-        #print(f'Game Number {game.turn_number}')
-        #print(f'Node Game Number {self.game.turn_number}')
+        # print(f'Game Number {game.turn_number}')
+        # print(f'Node Game Number {self.game.turn_number}')
         if game.turn_number - self.game.turn_number > self.search_depth:
             return True
         return False
@@ -57,7 +59,7 @@ class MCTSNode:
         self.expand_count += 1
         random_idx = randint(0, len(self.untried_actions) - 1)
         next_game, action = self.untried_actions.pop(random_idx)
-        #next_game.roll_dice()
+        # next_game.roll_dice()
         next_game.increment_turn()
         next_player = (self.player_number + 1) % 4
         child = MCTSNode(next_player,
@@ -78,16 +80,21 @@ class MCTSNode:
         rollout_state.roll_dice()
         while not self.is_terminal_game(rollout_state):
             possible_moves = self.get_legal_moves(rollout_state, current_player)
-            #if len(possible_moves) > 1:
-                # rollout_state, action = self.rollout_policy(possible_moves)
+            possible_moves = (pickle.loads(pickle.dumps(possible_moves, -1)))
+            # if len(possible_moves) > 1:
+            # rollout_state, action = self.rollout_policy(possible_moves)
             rollout_state, action = self.rollout_policy(possible_moves)
             rollout_state.roll_dice()
             rollout_state.increment_turn()
             # control if adversarial or not
-            #current_player = (current_player + 1) % 4
+            # current_player = (current_player + 1) % 4
             for i in range(3):
                 rollout_state.roll_dice()
-        return rollout_state.player_list[0].victory_points * 1/10
+        player: Player = rollout_state.player_list[0]
+        reward = player.victory_points * 0.05
+        reward += len(player.potential_settlements) * 0.00005
+        reward += sum([amount for _, amount in player.resources_dict.items()]) * 0.000001
+        return reward
 
     def rollout_policy(self, possible_moves):
         random_idx = randint(0, len(possible_moves) - 1)
@@ -99,7 +106,7 @@ class MCTSNode:
         else:
             legal_moves = get_possible_actions(game, player_number)
         if len(legal_moves) == 0:
-            legal_moves = [(copy.deepcopy(game), [])]
+            legal_moves = [(pickle.loads(pickle.dumps(game, -1)), [])]
 
         return legal_moves
 
@@ -114,16 +121,17 @@ class MCTSNode:
             (c.q_value / c.n_value) + c_param * np.sqrt((2 * np.log(self.n_value) / c.n_value))
             for c in self.children
         ])
-        #print('Number of Children', len(self.children))
+        # print('Number of Children', len(self.children))
         if len(self.children) == 0:
-            dc = copy.deepcopy(self)
+            dc = pickle.loads(pickle.dumps(self, -1))
             dc.player_number = (dc.player_number + 1) % 4
             return dc
         else:
             # randomly return a best choice
             # https://stackoverflow.com/a/42071648
             return self.children[np.random.choice(np.flatnonzero(np.isclose(choices_weights, choices_weights.max())))]
-            #return self.children[np.argmax(choices_weights)]
+            # return self.children[np.argmax(choices_weights)]
+
 
 class MCTSAgent:
     # https://github.com/int8/monte-carlo-tree-search/blob/master/mctspy/tree/search.py
@@ -133,6 +141,7 @@ class MCTSAgent:
         self.decision_time = decision_time
         self.player_number = node.player_number
         self.root = node
+        self.current_node = self.root
 
     def best_action(self, simulations_number=None, total_simulation_seconds=None):
         # handle no actions available
@@ -156,7 +165,9 @@ class MCTSAgent:
         best_child: MCTSNode = self.root.best_child(0)
         print(f'Number of possible actions: {len(best_child.parent.original_legal_moves)}')
         print(f'Possible actions were: {best_child.parent.original_legal_moves}')
-        print(f'Best Child has action {best_child.previous_action} with q={best_child.q_value} and n={best_child.n_value}')
+        print(
+            f'Best Child has action {best_child.previous_action} with q={best_child.q_value} and n={best_child.n_value}, '
+            f'Average Q: {best_child.q_value / best_child.n_value}')
         return best_child
 
     def tree_policy(self):
@@ -179,7 +190,7 @@ def get_opening_actions(game, player_number):
     for settlement in good_settlements:
         available_roads = game.board.get_potential_roads_from_location(settlement)
         for road in available_roads:
-            dc_game: Game = copy.deepcopy(game)
+            dc_game: Game = pickle.loads(pickle.dumps(game, -1))
             build_settlement_dict = {'action': 'put',
                                      'piece_code': 'SETTLEMENT',
                                      'location': settlement,
@@ -201,14 +212,19 @@ def get_opening_actions(game, player_number):
             possible_actions.append(possible_future)
     return possible_actions
 
+
 def get_possible_actions(game, player_number):
     possible_actions = []
     for game, action_list in generate_trade_actions(game, player_number, []):
         for game2, action_list2 in generate_road_actions(game, player_number, action_list):
             for game3, action_list3 in generate_settlement_actions(game2, player_number, action_list2):
                 for game4, action_list4 in generate_city_actions(game3, player_number, action_list3):
-                    possible_actions.append((game4, action_list4))
+                    if action_list2 or action_list3 or action_list4:
+                        possible_actions.append((game4, action_list4))
+                    else:
+                        possible_actions.append((game, []))
     return possible_actions
+
 
 def generate_city_actions(game, player_number, action_list_before):
     player = game.player_list[player_number]
@@ -221,9 +237,9 @@ def generate_city_actions(game, player_number, action_list_before):
             possible_future_list.append((game, action_list_before))
         else:
             # make deep copy of game state
-            dc_game: Game = copy.deepcopy(game)
+            dc_game: Game = pickle.loads(pickle.dumps(game, -1))
             # make move list for this future
-            action_list = copy.deepcopy(action_list_before)
+            action_list = copy.copy(action_list_before)
             for location in city_build_choice:
                 # reflect changes in player
                 piece_dict = {'player_number': player_number,
@@ -233,13 +249,14 @@ def generate_city_actions(game, player_number, action_list_before):
                 dc_game.player_list[player_number].spend_city_resources()
                 # add actions to list
                 build_city_dict = {'action': 'put',
-                                         'piece_code': 'CITY',
-                                         'location': location,
-                                         'player_number': player_number}
+                                   'piece_code': 'CITY',
+                                   'location': location,
+                                   'player_number': player_number}
                 action_list.append(build_city_dict)
             possible_future = (dc_game, action_list)
             possible_future_list.append(possible_future)
     return possible_future_list
+
 
 def generate_settlement_actions(game, player_number, action_list_before):
     player = game.player_list[player_number]
@@ -252,9 +269,9 @@ def generate_settlement_actions(game, player_number, action_list_before):
             possible_future_list.append((game, action_list_before))
         else:
             # make deep copy of game state
-            dc_game: Game = copy.deepcopy(game)
+            dc_game: Game = pickle.loads(pickle.dumps(game, -1))
             # make move list for this future
-            action_list = copy.deepcopy(action_list_before)
+            action_list = copy.copy(action_list_before)
             for location in settlement_build_choice:
                 # reflect changes in player
                 piece_dict = {'player_number': player_number,
@@ -272,6 +289,7 @@ def generate_settlement_actions(game, player_number, action_list_before):
             possible_future_list.append(possible_future)
     return possible_future_list
 
+
 def generate_road_actions(game, player_number, action_list_before):
     player = game.player_list[player_number]
     possible_future_list = []
@@ -283,9 +301,9 @@ def generate_road_actions(game, player_number, action_list_before):
             possible_future_list.append((game, action_list_before))
         else:
             # make deep copy of game state
-            dc_game: Game = copy.deepcopy(game)
+            dc_game: Game = pickle.loads(pickle.dumps(game, -1))
             # make move list for this future
-            action_list = copy.deepcopy(action_list_before)
+            action_list = copy.copy(action_list_before)
             for location in road_build_choice:
                 # reflect changes in player
                 piece_dict = {'player_number': player_number,
@@ -295,16 +313,17 @@ def generate_road_actions(game, player_number, action_list_before):
                 dc_game.player_list[player_number].spend_road_resources()
                 # add actions to list
                 build_road_dict = {'action': 'put',
-                                         'piece_code': 'ROAD',
-                                         'location': location,
-                                         'player_number': player_number}
+                                   'piece_code': 'ROAD',
+                                   'location': location,
+                                   'player_number': player_number}
                 action_list.append(build_road_dict)
             possible_future = (dc_game, action_list)
             possible_future_list.append(possible_future)
     return possible_future_list
 
+
 def generate_trade_actions(game, player_number, action_list_before):
-    possible_future_list = [(copy.deepcopy(game), [])]
+    possible_future_list = [(pickle.loads(pickle.dumps(game, -1)), [])]
     player = game.player_list[player_number]
     min_trade_amount = 4
     can_trade = max(player.resources_dict.values()) >= min_trade_amount
@@ -322,8 +341,8 @@ def generate_trade_actions(game, player_number, action_list_before):
                     other_resources = ["ORE", "WOOD", "WHEAT", "SHEEP", "CLAY"]
                     other_resources.remove(resource_away)
                     for resource_receive in other_resources:
-                        action_list = copy.deepcopy(action_list_before)
-                        dc_game: Game = copy.deepcopy(game)
+                        action_list = copy.copy(action_list_before)
+                        dc_game: Game = pickle.loads(pickle.dumps(game, -1))
                         trade_dict = {'action': 'trade',
                                       'resource_away': resource_away,
                                       'resource_receive': resource_receive}
@@ -331,6 +350,7 @@ def generate_trade_actions(game, player_number, action_list_before):
                         dc_game.player_trade(player_number, resource_away, resource_receive)
                         possible_future_list.append((dc_game, action_list))
     return possible_future_list
+
 
 # https://stackoverflow.com/a/1482316
 def get_subsets(iterable, max):
@@ -340,10 +360,3 @@ def get_subsets(iterable, max):
         for combo in combinations(s, r):
             output.append(list(combo))
     return output
-
-
-
-
-
-
-
