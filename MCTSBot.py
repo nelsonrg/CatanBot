@@ -93,8 +93,10 @@ class MCTSNode:
         player: Player = rollout_state.player_list[0]
         game = rollout_state
         # Reward Function ===============================================================
+        # 0. Winning
+        reward = int(player.victory_points >= 10) * 0.4
         # 1. Victory Points
-        reward = player.victory_points * 0.05
+        reward += player.victory_points * 0.05
         # 2. Boolean Switch for having at least one Potential Settlement
         reward += int(len(player.potential_settlements) > 0) * 0.0001
         # 3. Slight bump for more resources
