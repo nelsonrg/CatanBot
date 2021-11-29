@@ -91,10 +91,20 @@ class MCTSNode:
             for i in range(3):
                 rollout_state.roll_dice()
         player: Player = rollout_state.player_list[0]
+        game = rollout_state
         # Reward Function ===============================================================
+        # 1. Victory Points
         reward = player.victory_points * 0.05
-        reward += int(len(player.potential_settlements) > 0) * 0.00006
-        reward += sum([amount for _, amount in player.resources_dict.items()]) * 0.00001
+        # 2. Boolean Switch for having at least one Potential Settlement
+        reward += int(len(player.potential_settlements) > 0) * 0.0001
+        # 3. Slight bump for more resources
+        reward += sum([amount for _, amount in player.resources_dict.items()]) * 0.000001
+        # 4. Having access to a variety of resources
+        resource_types = set()
+        for settlement in player.settlements:
+            adjacent_resources = game.board.get_resources_from_settlement(settlement)
+            resource_types.update(adjacent_resources)
+        reward += len(resource_types) * 0.0001
         # ===============================================================================
         return reward
 
