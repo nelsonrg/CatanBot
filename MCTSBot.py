@@ -91,9 +91,11 @@ class MCTSNode:
             for i in range(3):
                 rollout_state.roll_dice()
         player: Player = rollout_state.player_list[0]
+        # Reward Function ===============================================================
         reward = player.victory_points * 0.05
-        reward += len(player.potential_settlements) * 0.00005
-        reward += sum([amount for _, amount in player.resources_dict.items()]) * 0.000001
+        reward += int(len(player.potential_settlements) > 0) * 0.00006
+        reward += sum([amount for _, amount in player.resources_dict.items()]) * 0.00001
+        # ===============================================================================
         return reward
 
     def rollout_policy(self, possible_moves):
