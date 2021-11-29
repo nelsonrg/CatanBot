@@ -100,8 +100,9 @@ class MCTSNode:
         # 3. Slight bump for more resources
         reward += sum([amount for _, amount in player.resources_dict.items()]) * 0.000001
         # 4. Having access to a variety of resources
+        production_centers = player.settlements.union(player.cities)
         resource_types = set()
-        for settlement in player.settlements:
+        for settlement in production_centers:
             adjacent_resources = game.board.get_resources_from_settlement(settlement)
             resource_types.update(adjacent_resources)
         reward += len(resource_types) * 0.0001
