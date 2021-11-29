@@ -106,6 +106,19 @@ class MCTSNode:
             adjacent_resources = game.board.get_resources_from_settlement(settlement)
             resource_types.update(adjacent_resources)
         reward += len(resource_types) * 0.0001
+        # 5. Drawing from more tiles (higher resource yield)
+        resource_yield = 0
+        for settlement in player.settlements:
+            adjacent_tiles = game.board.get_tile_from_node(settlement)
+            for tile in adjacent_tiles:
+                if tile in game.board.land_hex_list and game.board.resource_dict[tile] != 'DESERT':
+                    resource_yield += 1
+        for city in player.cities:
+            adjacent_tiles = game.board.get_tile_from_node(settlement)
+            for tile in adjacent_tiles:
+                if tile in game.board.land_hex_list and game.board.resource_dict[tile] != 'DESERT':
+                    resource_yield += 2
+        reward += resource_yield * 0.00001
         # ===============================================================================
         return reward
 
