@@ -1,7 +1,7 @@
 from MCTSBot import *
 
 
-class MCTSController:
+class RandomController:
     def __init__(self, player_number):
         self.turn_number = 0
         self.player_number = player_number
@@ -12,7 +12,7 @@ class MCTSController:
                                    3: 'SHEEP',
                                    4: 'WHEAT',
                                    5: 'WOOD'}
-        self.current_best_node = None
+        self.previous_node = None
 
     def create_board(self, board_layout):
         self.game.create_board(board_layout)
@@ -24,7 +24,7 @@ class MCTSController:
         self.turn_counter += 1
         message_list = []
         if player_number == self.player_number:
-            print("CatanBot's Turn")
+            print(f"RandomBot {player_number} Turn")
             if self.turn_number < 2:
                 if self.turn_counter == 4:
                     # make two moves
@@ -45,8 +45,8 @@ class MCTSController:
     def make_2_opening_turns(self):
         move_list = []
         # calculate from opening
-        best_node, action_list = self.think(search_depth=20, n_scale=1000)
-        best_node2, action_list2 = self.think(search_depth=20, n_scale=1000, previous_node=best_node)
+        chosen_node, action_list = self.think()
+        chosen_node2, action_list2 = self.think(previous_node=chosen_node)
         for action in action_list:
             move_list.append(self.put_piece(action['location'], action['piece_code']))
         for action in action_list2:
@@ -57,8 +57,8 @@ class MCTSController:
         player = self.game.player_list[self.player_number]
         move_list = []
         # calculate from opening
-        best_node, action_list = self.think(search_depth=20, n_scale=1000)
-        best_node2, action_list2 = self.think(search_depth=20, n_scale=1000, previous_node=best_node)
+        chosen_node, action_list = self.think()
+        chosen_node2, action_list2 = self.think(previous_node=chosen_node)
         for action in action_list:
             move_list.append(self.put_piece(action['location'], action['piece_code']))
         # prompt dice roll
@@ -91,7 +91,7 @@ class MCTSController:
     def make_opening_turn(self):
         move_list = []
         # calculate from opening
-        best_node, action_list = self.think(search_depth=20, n_scale=1000)
+        chosen_node, action_list = self.think()
         for action in action_list:
             move_list.append(self.put_piece(action['location'], action['piece_code']))
         return move_list
@@ -117,7 +117,7 @@ class MCTSController:
         # prompt dice roll
         move_list.append(['1031'])
         # think
-        best_node, action_list = self.think(search_depth=20, n_scale=1000)
+        chosen_node, action_list = self.think()
         if action_list is None:
             move_list.append(['1032'])
             return move_list
@@ -143,20 +143,16 @@ class MCTSController:
         move_list.append(['1032'])
         return move_list
 
-    def think(self, search_depth=10, n_scale=2, max_iter=2000, previous_node=None):
+    def think(self, previous_node=None):
         if previous_node is None:
             game = self.game
         else:
             game = previous_node.game
-        root = MCTSNode(self.player_number, game, 0, 0, None, None, 0, search_depth)
-        total_moves = len(root.original_legal_moves)
-        n = min(total_moves * n_scale, max_iter)
-        print(f'Simulating {n} Games at depth {search_depth}')
-        mcts_agent: MCTSAgent = MCTSAgent(root)
-        # best_node: MCTSNode = mcts_agent.best_action(simulations_number=n)
-        best_node: MCTSNode = mcts_agent.best_action(total_simulation_seconds=20)
-        action_list = best_node.previous_action
-        return best_node, action_list
+        root = MCTSNode(self.player_number, game, 0, 0, None, None, 0, 0)
+        random_agent: RandomAgent = RandomAgent(root)
+        chosen_node: MCTSNode = random_agent.make_move()
+        action_list = chosen_node.previous_action
+        return chosen_node, action_list
 
     def process_piece_placement(self, piece_dict):
         player_number = piece_dict.get('player_number')
@@ -174,20 +170,6 @@ class MCTSController:
             piece_name = 'CITY'
         self.game.process_piece_placement(piece_dict)
         print(f'Placing Player Number {player_number} {piece_name} at {location}')
-
-    def get_potential_roads_from_location(self, location):
-        potential_roads = set()
-        first_digit = location[2]
-        second_digit = location[3]
-        if is_even(first_digit) and is_odd(second_digit):
-            potential_roads.add(create_hex(first_digit, second_digit, -1, -1))
-            potential_roads.add(create_hex(first_digit, second_digit, 0, 0))
-            potential_roads.add(create_hex(first_digit, second_digit, 0, -1))
-        elif is_odd(first_digit) and is_even(second_digit):
-            potential_roads.add(create_hex(first_digit, second_digit, -1, 0))
-            potential_roads.add(create_hex(first_digit, second_digit, 0, 0))
-            potential_roads.add(create_hex(first_digit, second_digit, -1, -1))
-        return potential_roads - self.game.board.not_available_roads
 
     def set_player_resources(self, player_number, action, resources_dict):
         if action == 100:

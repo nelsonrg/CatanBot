@@ -135,8 +135,21 @@ class MCTSNode:
             legal_moves = get_possible_actions(game, player_number)
         if len(legal_moves) == 0:
             legal_moves = [(pickle.loads(pickle.dumps(game, -1)), [])]
-
         return legal_moves
+
+    def get_random_child(self):
+        random_idx = randint(0, len(self.untried_actions) - 1)
+        next_game, action = self.untried_actions[random_idx]
+        next_game.increment_turn()
+        child = MCTSNode(self.player_number,
+                         next_game,
+                         0,
+                         0,
+                         self,
+                         action,
+                         self.depth,
+                         self.search_depth)
+        return child
 
     def backpropagate(self, result):
         self.n_value += 1
@@ -178,10 +191,15 @@ class MCTSAgent:
         if simulations_number is None:
             assert (total_simulation_seconds is not None)
             end_time = time.time() + total_simulation_seconds
+            print(f'Simulating for {self.decision_time} seconds')
+            sim_count = 0
             while time.time() < end_time:
                 v = self.tree_policy()
                 reward = v.rollout()
                 v.backpropagate(reward)
+                sim_count += 1
+                if sim_count % 100 == 0:
+                    print(f'Simulation Number: {sim_count}')
         else:
             for idx in range(0, simulations_number):
                 if idx % (simulations_number // 10) == 0:
@@ -206,6 +224,15 @@ class MCTSAgent:
             else:
                 current_node = current_node.best_child()
         return current_node
+
+
+class RandomAgent:
+    def __init__(self, node):
+        self.node = node
+
+    def make_move(self):
+        node: MCTSNode = self.node
+        return node.get_random_child()
 
 
 # static methods

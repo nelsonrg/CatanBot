@@ -1,7 +1,11 @@
 import socket
 import struct
 import io
+import sys
 from MCTSController import *
+from RandomController import *
+from multiprocessing import Process
+import threading
 from Controller import *
 from Game import *
 import random
@@ -13,15 +17,18 @@ class Client:
     password = ''
     role = 'P'
 
-    def __init__(self, nick_name, host, port):
+    def __init__(self, nick_name, host, port, controller):
         self.nick_name = nick_name
+        self.controller = controller
+        self.player_number = controller.player_number
         self.host = host
         self.port = port
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        source_port = int(f'5555{self.player_number}')
+        self.socket.bind((f'0.0.0.0', source_port))
         self.socket.settimeout(False)
         self.socket.setblocking(True)
         self.socket.connect((host, port))
-        self.controller = MCTSController()
         self.resource_code_dict = {1: 'CLAY',
                                    2: 'ORE',
                                    3: 'SHEEP',
@@ -29,10 +36,13 @@ class Client:
                                    5: 'WOOD'}
 
     def run(self, game_name, player_number):
-        self.start_connection()
-        self.auth()
-        self.begin_game(game_name, player_number)
-        self.sit_down(game_name)
+        print('In run()')
+        #self.start_connection()
+        #self.auth()
+        #self.begin_game(game_name, self.player_number)
+        #self.sit_down(game_name)
+        if player_number == 0:
+            self.begin_game(game_name)
 
         while True:
             server_message = self.read_message()
@@ -53,7 +63,12 @@ class Client:
         message = f'999|{self.role},{self.nick_name},{self.scheme},{self.host},{self.password}'
         self.write_message(message)
 
-    def begin_game(self, game_name, player_number):
+    def begin_game(self, game_name):
+        # start game
+        message = f'1018|{game_name}'
+        self.write_message(message)
+
+    def create_game(self, game_name, player_number):
         # make game
         message = f'1078|{self.nick_name},{self.password},-,P,{game_name},BC=t4,_SC_SANY=f,NT=t,PLB=f,_SC_CLVI=f,' \
                   f'SC=,PLP=f,_EXT_CLI=,SBL=f,_SC_FOG=f,_EXT_GAM=,_SC_3IP=f,N7=t100,_SC_PIRI=f,_SC_SEAC=f,_SC_FTRI=f,' \
@@ -65,16 +80,13 @@ class Client:
         # be pepe
         message = f'1058|{game_name},{player_number},26'
         self.write_message(message)
-        # start game
-        message = f'1018|{game_name}'
-        self.write_message(message)
 
     def join_game(self, game_name):
         message = f'1013|{self.nick_name},{self.password},,{game_name}'
         self.write_message(message)
 
     def sit_down(self, game_name):
-        message = f'1012|{game_name},{self.nick_name},0,false'
+        message = f'1012|{game_name},{self.nick_name},{self.player_number},false'
         self.write_message(message)
 
     def read_message(self):
@@ -253,6 +265,76 @@ class DataOutputStream:
 
 
 if __name__ == '__main__':
-    client = Client("CatanBot", "localhost", 8080)
-    client.run('pythonTestGame', 0)
+    # expects a single argument with client type of mcts or random
+    args = sys.argv[1:]
+    client_type = args[0]
+    player_number = int(args[1])
+    game_name = args[2]
+    print(f'type:{client_type}, player:{player_number}, game_name:{game_name}')
+    client = None
+    if client_type == 'random':
+        client = Client(f'RandomBot{player_number}', 'localhost', 8080, RandomController(player_number=player_number))
+    elif client_type == 'mcts':
+        client = Client(f'CatanBot', 'localhost', 8080, MCTSController(player_number=player_number))
+    else:
+        print('Unrecognized Args')
+        exit(1)
+    # start playing
+    client.start_connection()
+    client.auth()
+    if player_number == 0:
+        client.create_game(game_name, player_number)
+    else:
+        client.join_game(game_name)
+    client.sit_down(game_name)
+    if player_number == 0:
+        sleep(10)
+        client.run(game_name, player_number)
+    else:
+        client.run(game_name, player_number)
     client.close()
+
+
+
+
+
+# if __name__ == '__main__':
+#     # set up the clients
+#     mcts_client = Client("CatanBot", "localhost", 8080, MCTSController(player_number=0))
+#     random_client1 = Client("RandomBot1", "localhost", 8080, RandomController(player_number=1))
+#     random_client2 = Client("RandomBot2", "localhost", 8080, RandomController(player_number=2))
+#     random_client3 = Client("RandomBot3", "localhost", 8080, RandomController(player_number=3))
+#     client_list = [mcts_client, random_client1, random_client2, random_client3]
+#     # connect and authorize
+#     for client in client_list:
+#         client.start_connection()
+#         client.auth()
+#     # begin the game
+#     game_name = 'BotBattle'
+#     mcts_client.create_game(game_name, 0)
+#     # other bots join
+#     for client in client_list[1:]:
+#         client.join_game(game_name)
+#     # everyone sit
+#     for client in client_list:
+#         client.sit_down(game_name)
+#     process_list = []
+#     # for client in client_list:
+#     #     print('Creating Processes')
+#     #     process_list.append(Process(target=client.run, args=(game_name,)))
+#     # for process in process_list:
+#     #     print('Starting Processes')
+#     #     process.start()
+#     # for process in process_list:
+#     #     print('Joining Processes')
+#     #     process.join()
+#     thread_list = []
+#     for client in client_list:
+#         print('Creating Thread')
+#         thread_list.append(threading.Thread(target=client.run, args=(game_name,)))
+#     for thread in thread_list:
+#         thread.start()
+#     sleep(5)
+#     mcts_client.begin_game(game_name)
+#     for client in client_list:
+#         client.close()
