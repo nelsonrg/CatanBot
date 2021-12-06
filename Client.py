@@ -24,11 +24,11 @@ class Client:
         self.host = host
         self.port = port
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        source_port = int(f'5555{self.player_number}')
-        self.socket.bind((f'0.0.0.0', source_port))
-        self.socket.settimeout(False)
-        self.socket.setblocking(True)
+        #source_port = int(f'5555{self.player_number}')
+        #print(f'Source Port: {source_port}')
+        #self.socket.bind(('', source_port))
         self.socket.connect((host, port))
+        self.socket.setblocking(True)
         self.resource_code_dict = {1: 'CLAY',
                                    2: 'ORE',
                                    3: 'SHEEP',
@@ -270,12 +270,13 @@ if __name__ == '__main__':
     client_type = args[0]
     player_number = int(args[1])
     game_name = args[2]
+    host_ip = args[3]
     print(f'type:{client_type}, player:{player_number}, game_name:{game_name}')
     client = None
     if client_type == 'random':
-        client = Client(f'RandomBot{player_number}', 'localhost', 8080, RandomController(player_number=player_number))
+        client = Client(f'RandomBot{player_number}', host_ip, 8080, RandomController(player_number=player_number))
     elif client_type == 'mcts':
-        client = Client(f'CatanBot', 'localhost', 8080, MCTSController(player_number=player_number))
+        client = Client(f'CatanBot', host_ip, 8080, MCTSController(player_number=player_number))
     else:
         print('Unrecognized Args')
         exit(1)
