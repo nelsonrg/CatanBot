@@ -44,7 +44,7 @@ class MCTSNode:
     def is_terminal_game(self, game):
         for player in game.player_list:
             if player.victory_points > 9:
-                print('Found real terminal Game!')
+                #print('Found real terminal Game!')
                 return True
         # print(f'Game Number {game.turn_number}')
         # print(f'Node Game Number {self.game.turn_number}')
@@ -318,6 +318,8 @@ def generate_settlement_actions(game, player_number, action_list_before):
     possible_future_list = []
     # now build settlements
     n_settlements = player.how_many_settlements_can_build()
+    if len(player.settlements) == 5:
+        n_settlements = 0
     settlement_combination_list = get_subsets(player.potential_settlements, n_settlements)
     for settlement_build_choice in settlement_combination_list:
         if not settlement_build_choice:

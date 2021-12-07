@@ -82,11 +82,11 @@ class Client:
         self.write_message(message)
 
     def join_game(self, game_name):
-        message = f'1013|{self.nick_name},{self.password},,{game_name}'
+        message = f'1013|{self.nick_name},\t,\t,{game_name}'
         self.write_message(message)
 
     def sit_down(self, game_name):
-        message = f'1012|{game_name},{self.nick_name},{self.player_number},false'
+        message = f'1012|{game_name},{self.nick_name},{self.player_number},true'
         self.write_message(message)
 
     def read_message(self):
@@ -100,15 +100,15 @@ class Client:
                     break
             return r
 
-        try:
+        while True:
             highByte = ord(recvwait(1))
             lowByte = ord(recvwait(1))
             transLength = highByte * 256 + lowByte
             msg = recvwait(transLength)
             return msg
-        except socket.timeout:
-            print("Error, socket timeout")
-            return -1
+        # except socket.timeout:
+        #     print("Error, socket timeout")
+        #     return -1
 
     def write_message(self, string_message):
         stream = io.BytesIO()
@@ -143,6 +143,8 @@ class Client:
         elif message_head == '1092':
             # dice result resources
             self.dice_result_resources(message_body)
+        else:
+            return
 
     def create_board(self, message_body, game_name):
         # remove |gameName, from beginning of str
@@ -282,10 +284,11 @@ if __name__ == '__main__':
         exit(1)
     # start playing
     client.start_connection()
-    client.auth()
     if player_number == 0:
+        client.auth()
         client.create_game(game_name, player_number)
     else:
+        client.auth()
         client.join_game(game_name)
     client.sit_down(game_name)
     if player_number == 0:
@@ -320,22 +323,20 @@ if __name__ == '__main__':
 #     for client in client_list:
 #         client.sit_down(game_name)
 #     process_list = []
-#     # for client in client_list:
-#     #     print('Creating Processes')
-#     #     process_list.append(Process(target=client.run, args=(game_name,)))
-#     # for process in process_list:
-#     #     print('Starting Processes')
-#     #     process.start()
+#     for idx, client in enumerate(client_list):
+#         print('Creating Processes')
+#         process_list.append(Process(target=client.run, args=(game_name, idx,)))
+#     for process in process_list:
+#         print('Starting Processes')
+#         process.start()
 #     # for process in process_list:
 #     #     print('Joining Processes')
 #     #     process.join()
-#     thread_list = []
-#     for client in client_list:
-#         print('Creating Thread')
-#         thread_list.append(threading.Thread(target=client.run, args=(game_name,)))
-#     for thread in thread_list:
-#         thread.start()
-#     sleep(5)
-#     mcts_client.begin_game(game_name)
+#     # thread_list = []
+#     # for idx, client in enumerate(client_list):
+#     #     print('Creating Thread')
+#     #     thread_list.append(threading.Thread(target=client.run, args=(game_name, idx,)))
+#     # for thread in thread_list:
+#     #     thread.start()
 #     for client in client_list:
 #         client.close()

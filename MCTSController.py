@@ -1,4 +1,6 @@
 from MCTSBot import *
+import csv
+import os
 
 
 class MCTSController:
@@ -12,7 +14,8 @@ class MCTSController:
                                    3: 'SHEEP',
                                    4: 'WHEAT',
                                    5: 'WOOD'}
-        self.current_best_node = None
+        self.current_best_node: MCTSNode = None
+        self.n_moves = 0
 
     def create_board(self, board_layout):
         self.game.create_board(board_layout)
@@ -38,6 +41,7 @@ class MCTSController:
                     message_list = self.make_opening_turn()
             else:
                 message_list = self.execute_turn()
+            self.write_record()
             self.turn_number += 1
             self.game.increment_turn()
         return message_list
@@ -156,6 +160,8 @@ class MCTSController:
         # best_node: MCTSNode = mcts_agent.best_action(simulations_number=n)
         best_node: MCTSNode = mcts_agent.best_action(total_simulation_seconds=20)
         action_list = best_node.previous_action
+        self.current_best_node = best_node
+        self.n_moves = len(root.original_legal_moves)
         return best_node, action_list
 
     def process_piece_placement(self, piece_dict):
@@ -199,3 +205,21 @@ class MCTSController:
         elif action == 102:
             # LOSE
             self.game.lose_player_resources(player_number, resources_dict)
+
+    def write_record(self):
+        file_name = f'./logs/mcts_vs_random/mcts_{self.player_number}.csv'
+        file_exists = os.path.isfile(file_name)
+        player = self.game.player_list[self.player_number]
+        player_resource_dict = player.resources_dict
+        with open(file_name, 'a', newline='') as csv_file:
+            writer = csv.writer(csv_file, delimiter=',')
+            if not file_exists:
+                print('Writing header')
+                writer.writerow(['turn', 'clay', 'ore', 'sheep', 'wheat', 'wood', 'roads',
+                                 'settlements', 'cities', 'vp', 'num_moves'])
+            writer.writerow([f'{self.turn_counter}', f'{player_resource_dict["CLAY"]}',
+                             f'{player_resource_dict["ORE"]}', f'{player_resource_dict["SHEEP"]}',
+                             f'{player_resource_dict["WHEAT"]}', f'{player_resource_dict["WOOD"]}',
+                             f'{len(player.roads)}', f'{len(player.settlements)}', f'{len(player.cities)}',
+                             f'{player.victory_points}',
+                             f'{self.n_moves}'])
