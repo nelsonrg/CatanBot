@@ -207,7 +207,7 @@ class MCTSController:
             self.game.lose_player_resources(player_number, resources_dict)
 
     def write_record(self):
-        file_name = f'./logs/mcts_vs_random/mcts_{self.player_number}.csv'
+        file_name = f'./logs/mcts_vs_heuristic/mcts_{self.player_number}.csv'
         file_exists = os.path.isfile(file_name)
         player = self.game.player_list[self.player_number]
         player_resource_dict = player.resources_dict
