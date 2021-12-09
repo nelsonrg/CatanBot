@@ -1,15 +1,11 @@
+import io
 import socket
 import struct
-import io
 import sys
+from time import sleep
+
 from MCTSController import *
 from RandomController import *
-from multiprocessing import Process
-import threading
-from Controller import *
-from Game import *
-import random
-from time import sleep
 
 
 class Client:

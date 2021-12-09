@@ -41,7 +41,7 @@ class MCTSController:
                     message_list = self.make_opening_turn()
             else:
                 message_list = self.execute_turn()
-            self.write_record()
+            #self.write_record()
             self.turn_number += 1
             self.game.increment_turn()
         return message_list

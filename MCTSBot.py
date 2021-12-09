@@ -175,6 +175,7 @@ class MCTSNode:
 
 
 class MCTSAgent:
+    # referenced from:
     # https://github.com/int8/monte-carlo-tree-search/blob/master/mctspy/tree/search.py
 
     def __init__(self, node, decision_time=20):
